@@ -38,6 +38,9 @@ public class Cnct(public val config: CnctConfig = CnctConfig()) {
     /** The same SDK pointed somewhere else. Everything but the host is carried over. */
     public fun withBaseUrl(baseUrl: String): Cnct = Cnct(config.copy(baseUrl = baseUrl))
 
+    /** Bookings and tickets, on an account-wide API key. **Server-side only** — see [CnctApiKey]. */
+    public fun agent(credentials: CnctApiKey): CnctAgentClient = CnctAgentClient(config, credentials)
+
     public companion object {
         /** The short form, for the common case of a host and nothing else. */
         public fun host(baseUrl: String): Cnct = Cnct(CnctConfig(baseUrl = baseUrl))
