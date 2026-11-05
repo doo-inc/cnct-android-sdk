@@ -20,3 +20,14 @@
   are `@Serializable`, ignore fields they do not know, and carry `sandbox` where the platform does.
 - A response that parses but is the wrong shape is `bad_response` rather than a serialization
   exception.
+- **Live chat** on an inbox public key: `CnctChatClient` (or `Cnct().chat(key, tokenStore, storageKey,
+  scope)`) with `boot`, `start`, `resume`, `send`, `retry`, `typing`, `end`, `downloadAttachment`,
+  `attachmentRequest`, `connect`, `disconnect`, `close`; `state` is a `StateFlow<CnctChatState>`,
+  `events` a `SharedFlow<CnctChatEvent>`. A reconnect reloads the transcript; every send carries a
+  `clientKey`; sends go over the socket when the handshake accepts them and over HTTP otherwise; the
+  session token rides on `x-chat-token`; a refused token is cleared. Ticket and booking cards are
+  typed, and an unrecognised card degrades to its own body.
+- The socket is OkHttp's WebSocket behind `CnctSocketFactory`, so tests and apps can bring their own.
+  The client's work runs one piece at a time on the dispatcher of the `CoroutineScope` it is given,
+  and cancelling that scope closes it.
+- `Cnct().clientFor(credentials)` answers a sealed `CnctClient`.

@@ -4,6 +4,8 @@ import kotlinx.serialization.DeserializationStrategy
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.builtins.serializer
+import kotlinx.serialization.descriptors.PrimitiveKind
+import kotlinx.serialization.descriptors.PrimitiveSerialDescriptor
 import kotlinx.serialization.descriptors.SerialDescriptor
 import kotlinx.serialization.encoding.Decoder
 import kotlinx.serialization.encoding.Encoder
@@ -14,6 +16,7 @@ import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.contentOrNull
 import java.time.Instant
 import java.time.OffsetDateTime
 
@@ -149,4 +152,21 @@ internal object StringListSerializer : KSerializer<List<String>> {
     }
 
     override fun serialize(encoder: Encoder, value: List<String>): Unit = delegate.serialize(encoder, value)
+}
+
+/**
+ * A timestamp that is never missing. The platform stamps every message and every conversation, and a
+ * row with a garbled one is still worth showing — so, as in the Flutter SDK, an unreadable value is
+ * read as "now" rather than failing the row.
+ */
+internal object InstantOrNowSerializer : KSerializer<Instant> {
+    override val descriptor: SerialDescriptor = PrimitiveSerialDescriptor("ooo.doo.cnct.Instant", PrimitiveKind.STRING)
+
+    override fun deserialize(decoder: Decoder): Instant {
+        val raw = (decoder as? JsonDecoder)?.decodeJsonElement()?.let { (it as? JsonPrimitive)?.contentOrNull }
+            ?: if (decoder is JsonDecoder) null else decoder.decodeString()
+        return parseInstant(raw) ?: Instant.now()
+    }
+
+    override fun serialize(encoder: Encoder, value: Instant): Unit = encoder.encodeString(value.toString())
 }

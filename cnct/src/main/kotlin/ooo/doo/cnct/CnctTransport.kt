@@ -35,7 +35,7 @@ import kotlin.coroutines.resumeWithException
  */
 public class CnctTransport(
     public val config: CnctConfig,
-    private val client: OkHttpClient = defaultClient,
+    private val client: OkHttpClient = sharedOkHttpClient,
 ) {
     public suspend fun get(
         path: String,
@@ -212,7 +212,11 @@ public class CnctTransport(
         val EMPTY_BODY = ByteArray(0).toRequestBody(null)
         val NEEDS_BODY = setOf("POST", "PUT", "PATCH")
         const val REFUSED = "That request was refused."
-
-        val defaultClient: OkHttpClient by lazy { OkHttpClient() }
     }
 }
+
+/**
+ * One client shared by every transport and every chat socket that is not handed its own, so many SDK
+ * objects do not mean many connection pools.
+ */
+internal val sharedOkHttpClient: OkHttpClient by lazy { OkHttpClient() }

@@ -36,7 +36,7 @@ public class CnctAgentClient(
     credentials: CnctApiKey,
     /** Pass one to share an [okhttp3.OkHttpClient] with the rest of your app. */
     transport: CnctTransport = CnctTransport(config),
-) {
+) : CnctClient {
     private val transport: CnctTransport = transport
     private val headers: Map<String, String> = credentials.headers
 
