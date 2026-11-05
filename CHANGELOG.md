@@ -31,3 +31,12 @@
   The client's work runs one piece at a time on the dispatcher of the `CoroutineScope` it is given,
   and cancelling that scope closes it.
 - `Cnct().clientFor(credentials)` answers a sealed `CnctClient`.
+- **`cnct-android`**, a second artifact: `CnctKeystoreTokenStore` keeps the chat session token in
+  `SharedPreferences`, encrypted with an AES-256-GCM key generated in the Android Keystore and bound
+  to the entry it was written under. Anything that will not decrypt reads as no session. Below API 23,
+  where the Keystore has no AES keys, it keeps the token in memory. Not built on the deprecated
+  `androidx.security:security-crypto`.
+- **`sample`**, a Compose chat screen on the headless client, configured from `local.properties`.
+  Not published.
+- README sections for chat, bookings and tickets. Timestamps are `java.time.Instant`, so an app below
+  API 26 needs core library desugaring.

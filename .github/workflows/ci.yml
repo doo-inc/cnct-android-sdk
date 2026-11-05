@@ -20,11 +20,13 @@ jobs:
           distribution: temurin
           java-version: 17
       - uses: gradle/actions/setup-gradle@v4
-      # `build` compiles with warnings as errors, runs the tests, and builds the jar and sources jar.
-      # publishToMavenLocal is what JitPack runs, so a tag that would not install fails here first.
+      # `build` compiles with warnings as errors, runs the tests (Robolectric included), lints the
+      # Android modules, and builds the jar, the AAR and the sample. The runner image carries the
+      # Android SDK. publishToMavenLocal is what JitPack runs, so a tag that would not install fails
+      # here first.
       - run: ./gradlew build publishToMavenLocal --console=plain
       - uses: actions/upload-artifact@v4
         if: failure()
         with:
-          name: test-reports
-          path: '**/build/reports/tests/'
+          name: reports
+          path: '**/build/reports/'

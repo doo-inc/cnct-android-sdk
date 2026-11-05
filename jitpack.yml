@@ -1,5 +1,7 @@
-# JitPack builds a tag on first request and serves it as
+# JitPack builds a tag on first request and serves both artifacts as
 #   com.github.doo-inc.cnct-android-sdk:cnct:<tag>
+#   com.github.doo-inc.cnct-android-sdk:cnct-android:<tag>
+# It provides the Android SDK for a project that applies the Android Gradle Plugin.
 # Until there is a Maven Central release, this is how an app installs the SDK without credentials.
 jdk:
   - openjdk17
