@@ -5,9 +5,9 @@ on:
     tags: ['v*']
 
 # A tag is what an app installs — through JitPack today, as
-# com.github.doo-inc.cnct-android-sdk:cnct:<tag>. This makes sure a tag only goes out when the tests
-# pass and the version Gradle publishes matches the tag it was cut from, and attaches the jars so a
-# build with no JitPack access can still vendor them.
+# com.github.doo-inc.cnct-android-sdk:cnct:<tag> and :cnct-android:<tag>. This makes sure a tag only
+# goes out when the tests pass and the version Gradle publishes matches the tag it was cut from, and
+# attaches the jars and the AAR so a build with no JitPack access can still vendor them.
 permissions:
   contents: write
 
@@ -32,5 +32,7 @@ jobs:
       - run: ./gradlew build --console=plain
       - uses: softprops/action-gh-release@v2
         with:
-          files: cnct/build/libs/*.jar
+          files: |
+            cnct/build/libs/*.jar
+            cnct-android/build/outputs/aar/cnct-android-release.aar
           generate_release_notes: true

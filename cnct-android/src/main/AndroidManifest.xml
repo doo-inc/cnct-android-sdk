@@ -1,0 +1,4 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Nothing to declare: the token store needs no permission, and the INTERNET permission the chat
+     client needs is the app's to declare. -->
+<manifest />
