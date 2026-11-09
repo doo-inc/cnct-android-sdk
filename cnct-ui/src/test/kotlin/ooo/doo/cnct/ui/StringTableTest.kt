@@ -38,7 +38,8 @@ class StringTableTest {
         .replace("\\?", "?")
         .replace("\\\\", "\\")
 
-    private fun name(key: String) = "cnct_" + Regex("([a-z0-9])([A-Z])").replace(key, "$1_$2").lowercase()
+    private fun name(key: String) =
+        "cnct_" + Regex("([A-Z])([A-Z][a-z])").replace(Regex("([a-z0-9])([A-Z])").replace(key, "$1_$2"), "$1_$2").lowercase()
 
     private fun args(key: String) = Regex("""\{(\w+)\}""").findAll(en.getValue(key)).map { it.groupValues[1] }.distinct().toList()
 
@@ -71,6 +72,14 @@ class StringTableTest {
             assertEquals("ar.$key", positional(key, ar.getValue(key)), arabic[name(key)])
             assertFalse("ar.$key has a literal brace left", arabic.getValue(name(key)).contains("{"))
         }
+    }
+
+    @Test
+    fun `camelCase keys become snake_case resource names`() {
+        assertEquals("cnct_sent_a_file", name("sentAFile"))
+        assertEquals("cnct_quote_image", name("quoteIMAGE"))
+        assertEquals("cnct_reply20", name("reply20"))
+        assertEquals("cnct_not_taking_chats_body", name("notTakingChatsBody"))
     }
 
     @Test

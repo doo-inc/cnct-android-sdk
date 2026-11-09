@@ -41,7 +41,7 @@
     <string name="cnct_forget_me">انسَني على هذا الجهاز</string>
     <string name="cnct_open">مفتوحة</string>
     <string name="cnct_you">أنت</string>
-    <string name="cnct_sent_afile">أرسل ملفاً</string>
+    <string name="cnct_sent_a_file">أرسل ملفاً</string>
     <string name="cnct_your_name">اسمك</string>
     <string name="cnct_name_placeholder">بماذا نناديك؟</string>
     <string name="cnct_phone_number">رقم الهاتف</string>

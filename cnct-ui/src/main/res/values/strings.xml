@@ -41,7 +41,7 @@
     <string name="cnct_forget_me">Forget me on this device</string>
     <string name="cnct_open">Open</string>
     <string name="cnct_you">You</string>
-    <string name="cnct_sent_afile">Sent a file</string>
+    <string name="cnct_sent_a_file">Sent a file</string>
     <string name="cnct_your_name">Your name</string>
     <string name="cnct_name_placeholder">What should we call you?</string>
     <string name="cnct_phone_number">Phone number</string>

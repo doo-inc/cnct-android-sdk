@@ -55,7 +55,9 @@ dependencies {
     api(platform(libs.compose.bom))
     api(libs.compose.ui)
     implementation(libs.compose.foundation)
-    implementation(libs.androidx.activity.compose)
+    // Part of the public API: CnctChatActivity is a ComponentActivity, and an app without Compose
+    // that starts it has to be able to see what it is.
+    api(libs.androidx.activity.compose)
     implementation(libs.androidx.lifecycle.runtime.compose)
     implementation(libs.androidx.lifecycle.viewmodel.compose)
     // About 60 KB, and the difference between a camera photo sent upright and one sent sideways on the
@@ -104,7 +106,9 @@ abstract class GenerateCnctStrings : DefaultTask() {
         val en = languages.getValue("en")
         val ar = languages.getValue("ar")
         val placeholder = Regex("""\{(\w+)\}""")
-        fun resourceName(key: String) = "cnct_" + Regex("([a-z0-9])([A-Z])").replace(key, "$1_$2").lowercase()
+        // sentAFile → sent_a_file, quoteIMAGE → quote_image, reply20 → reply20.
+        fun resourceName(key: String) =
+            "cnct_" + Regex("([A-Z])([A-Z][a-z])").replace(Regex("([a-z0-9])([A-Z])").replace(key, "$1_$2"), "$1_$2").lowercase()
         fun argsOf(key: String) = placeholder.findAll(en.getValue(key)).map { it.groupValues[1] }.distinct().toList()
         fun escape(value: String): String {
             val escaped = value

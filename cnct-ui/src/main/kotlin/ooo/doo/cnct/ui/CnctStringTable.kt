@@ -44,7 +44,7 @@ internal object CnctStringTable {
         CnctStringEntry("forgetMe", R.string.cnct_forget_me),
         CnctStringEntry("open", R.string.cnct_open),
         CnctStringEntry("you", R.string.cnct_you),
-        CnctStringEntry("sentAFile", R.string.cnct_sent_afile),
+        CnctStringEntry("sentAFile", R.string.cnct_sent_a_file),
         CnctStringEntry("yourName", R.string.cnct_your_name),
         CnctStringEntry("namePlaceholder", R.string.cnct_name_placeholder),
         CnctStringEntry("phoneNumber", R.string.cnct_phone_number),
