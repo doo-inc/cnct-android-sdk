@@ -1,10 +1,10 @@
 # Changelog
 
-## 1.0.0 — not yet tagged
+## 1.0.0 — 2026-11-09
 
 Shipped together with the web and iOS SDKs' 1.0.0, from one spec (`docs/chat-ui/SPEC.md`): a
 ready-made chat interface a business can brand, Arabic and right-to-left, files both ways, and the
-rest of the visitor API. Install pinned to `v1.0.0` once it is tagged; see the README.
+rest of the visitor API. Install pinned to `v1.0.0`; see the README.
 
 **Breaking, from 0.1.0** (which was never tagged): `send(body, clientKey)` is now
 `send(body, attachmentIds, replyId, clientKey)` — positional callers passing a client key name it;

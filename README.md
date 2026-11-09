@@ -3,9 +3,9 @@
 The official CNCT SDK for Android and Kotlin: a ready-made chat screen a business can brand, and
 under it a headless client for live chat, bookings and tickets against a CNCT workspace.
 
-> **Status: 1.0.0, not yet tagged.** Built from the same spec as the web and iOS SDKs
-> ([`docs/chat-ui/SPEC.md`](docs/chat-ui/SPEC.md)), which ship 1.0.0 together. Until the `v1.0.0`
-> tag exists, do not depend on `main`.
+> **Status: 1.0.0, tagged 2026-11-09.** Built from the same spec as the web and iOS SDKs
+> ([`docs/chat-ui/SPEC.md`](docs/chat-ui/SPEC.md)), which ship 1.0.0 together. Install the `v1.0.0`
+> tag, not `main`.
 
 Three artifacts, so an app takes only what it uses:
 
