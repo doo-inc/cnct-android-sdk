@@ -63,7 +63,7 @@ public class CnctChatActivity : ComponentActivity() {
         val theme: CnctChatTheme?,
         val strings: CnctChatStrings?,
         val identity: CnctChatIdentity?,
-        val onEvent: ((CnctChatUiEvent) -> Unit)?,
+        val onEvent: ((CnctChatUIEvent) -> Unit)?,
     )
 
     public companion object {
@@ -82,7 +82,7 @@ public class CnctChatActivity : ComponentActivity() {
             language: CnctLanguage? = null,
             strings: CnctChatStrings? = null,
             identity: CnctChatIdentity? = null,
-            onEvent: ((CnctChatUiEvent) -> Unit)? = null,
+            onEvent: ((CnctChatUIEvent) -> Unit)? = null,
         ): Intent {
             val intent = Intent(context, CnctChatActivity::class.java)
                 .putExtra(EXTRA_PUBLIC_KEY, publicKey)

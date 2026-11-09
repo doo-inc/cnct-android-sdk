@@ -78,7 +78,7 @@ public object CnctChatFixture {
         language: CnctLanguage = CnctLanguage.EN,
         theme: CnctChatTheme? = null,
         onClose: (() -> Unit)? = null,
-        onEvent: ((CnctChatUiEvent) -> Unit)? = null,
+        onEvent: ((CnctChatUIEvent) -> Unit)? = null,
     ) {
         Chat(modifier, language, theme, onClose, onEvent, fresh = false)
     }
@@ -90,7 +90,7 @@ public object CnctChatFixture {
         language: CnctLanguage,
         theme: CnctChatTheme?,
         onClose: (() -> Unit)?,
-        onEvent: ((CnctChatUiEvent) -> Unit)?,
+        onEvent: ((CnctChatUIEvent) -> Unit)?,
         fresh: Boolean,
     ) {
         val application = LocalContext.current.applicationContext as Application

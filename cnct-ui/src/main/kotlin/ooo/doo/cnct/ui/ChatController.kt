@@ -39,7 +39,7 @@ internal class ChatController(
     host: CoroutineScope,
     private val store: AttachmentStore?,
     private val identity: CnctChatIdentity?,
-    private val events: () -> ((CnctChatUiEvent) -> Unit)?,
+    private val events: () -> ((CnctChatUIEvent) -> Unit)?,
 ) {
     /**
      * A child of the host's scope that one failure cannot take down: a refused session start is a
@@ -109,7 +109,7 @@ internal class ChatController(
     private val keys = AtomicLong()
     private var startingSession: Deferred<Unit>? = null
 
-    private fun emit(event: CnctChatUiEvent) {
+    private fun emit(event: CnctChatUIEvent) {
         events()?.invoke(event)
     }
 
@@ -140,7 +140,7 @@ internal class ChatController(
             mutablePhase.value = Phase.Closed(Unavailable.SWITCHED_OFF)
             return@launch
         }
-        emit(CnctChatUiEvent.Opened)
+        emit(CnctChatUIEvent.Opened)
         if (identity != null) {
             try {
                 client.identify(identity)
@@ -175,7 +175,7 @@ internal class ChatController(
         scope.launch {
             try {
                 client.start(displayName = name, phone = phone?.trim()?.takeIf { it.isNotEmpty() })
-                emit(CnctChatUiEvent.Started)
+                emit(CnctChatUIEvent.Started)
                 mutablePhase.value = Phase.Chat
             } catch (error: CnctException) {
                 mutableNotice.value = if (error.status == 429) Notice.Word(R.string.cnct_too_many_chats) else Notice.Server(error.message)
@@ -213,7 +213,7 @@ internal class ChatController(
         val pending = startingSession ?: scope.async {
             try {
                 client.start()
-                emit(CnctChatUiEvent.Started)
+                emit(CnctChatUIEvent.Started)
             } finally {
                 startingSession = null
             }
@@ -249,8 +249,8 @@ internal class ChatController(
             accepted()
             try {
                 client.send(words, attachmentIds = ids)
-                emit(CnctChatUiEvent.Sent)
-                if (ids.isNotEmpty()) emit(CnctChatUiEvent.AttachmentSent(ids.size))
+                emit(CnctChatUIEvent.Sent)
+                if (ids.isNotEmpty()) emit(CnctChatUIEvent.AttachmentSent(ids.size))
             } catch (error: CnctException) {
                 // The bubble stays, marked, with its own retry; a word under the thread says why.
                 mutableNotice.value = when {
@@ -268,7 +268,7 @@ internal class ChatController(
         scope.launch {
             try {
                 client.choose(choice)
-                emit(CnctChatUiEvent.Sent)
+                emit(CnctChatUIEvent.Sent)
             } catch (error: CnctException) {
                 mutableNotice.value = Notice.Server(error.message)
             }
@@ -357,9 +357,9 @@ internal class ChatController(
             val progress: (Float) -> Unit = { fraction -> change { it.copy(progress = fraction) } }
             val bytes = prepared.bytes
             val attachment = if (bytes != null) {
-                client.uploadAttachment(bytes, prepared.name, prepared.mimeType, progress)
+                client.upload(bytes, prepared.name, prepared.mimeType, progress)
             } else {
-                client.uploadAttachment(prepared.size, prepared.name, prepared.mimeType, progress, file.open)
+                client.upload(prepared.size, prepared.name, prepared.mimeType, progress, file.open)
             }
             // The server's copy, when it comes back on the message, is drawn from the file on this device.
             try {
@@ -397,7 +397,7 @@ internal class ChatController(
         scope.launch {
             try {
                 client.end()
-                emit(CnctChatUiEvent.Ended)
+                emit(CnctChatUIEvent.Ended)
             } catch (_: CnctException) {
                 // Ending is the visitor's way out; it should never be the thing that fails loudly.
             }
@@ -418,7 +418,7 @@ internal class ChatController(
         scope.launch {
             try {
                 client.rate(score, comment = comment, conversationId = conversationId)
-                if (comment == null) emit(CnctChatUiEvent.Rated(score))
+                if (comment == null) emit(CnctChatUIEvent.Rated(score))
             } catch (error: CnctException) {
                 ratingStage.update { stages -> if (before == null) stages - conversationId else stages + (conversationId to before) }
                 mutableNotice.value = Notice.Server(error.message)

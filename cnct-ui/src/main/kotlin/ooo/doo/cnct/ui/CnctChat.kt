@@ -49,7 +49,7 @@ public fun CnctChat(
     strings: CnctChatStrings? = null,
     identity: CnctChatIdentity? = null,
     onClose: (() -> Unit)? = null,
-    onEvent: ((CnctChatUiEvent) -> Unit)? = null,
+    onEvent: ((CnctChatUIEvent) -> Unit)? = null,
 ) {
     val application = LocalContext.current.applicationContext as Application
     val holder = viewModel(key = "cnct-chat-${System.identityHashCode(client)}-${identity?.userId}") {
@@ -75,7 +75,7 @@ public fun CnctChat(
     strings: CnctChatStrings? = null,
     identity: CnctChatIdentity? = null,
     onClose: (() -> Unit)? = null,
-    onEvent: ((CnctChatUiEvent) -> Unit)? = null,
+    onEvent: ((CnctChatUIEvent) -> Unit)? = null,
 ) {
     val application = LocalContext.current.applicationContext as Application
     val holder = viewModel(key = "cnct-chat-$publicKey-$baseUrl-${identity?.userId}") {
@@ -92,7 +92,7 @@ internal fun ChatHost(
     language: CnctLanguage?,
     strings: CnctChatStrings?,
     onClose: (() -> Unit)?,
-    onEvent: ((CnctChatUiEvent) -> Unit)?,
+    onEvent: ((CnctChatUIEvent) -> Unit)?,
 ) {
     SideEffect { holder.onEvent = onEvent }
     LaunchedEffect(holder) { holder.openOnce() }
@@ -111,7 +111,7 @@ internal class ChatHolder(
     private val onCleared: (() -> Unit)? = null,
     private val afterOpen: (suspend (ChatController) -> Unit)? = null,
 ) : ViewModel() {
-    var onEvent: ((CnctChatUiEvent) -> Unit)? = null
+    var onEvent: ((CnctChatUIEvent) -> Unit)? = null
     val store = AttachmentStore(application, client)
     val controller = ChatController(client, viewModelScope, store, identity) { onEvent }
     private var opened = false
