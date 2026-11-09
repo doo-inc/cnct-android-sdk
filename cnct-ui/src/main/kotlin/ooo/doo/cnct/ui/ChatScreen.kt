@@ -656,12 +656,12 @@ private fun AttachButton(controller: ChatController, inTray: Int) {
                             .border(1.dp, theme.border, RoundedCornerShape(14.dp))
                             .padding(vertical = 6.dp),
                     ) {
-                        MenuRow(ChatIcons.Photo, look.words.kind(ooo.doo.cnct.CnctAttachmentKind.IMAGE)) {
+                        MenuRow(ChatIcons.Photo, look.words(R.string.cnct_attach_photos)) {
                             open = false
                             photos.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageAndVideo))
                         }
                         if (hasCamera) {
-                            MenuRow(ChatIcons.Camera, look.words(R.string.cnct_camera)) {
+                            MenuRow(ChatIcons.Camera, look.words(R.string.cnct_attach_camera)) {
                                 open = false
                                 try {
                                     val (file, uri) = CnctFileProvider.cameraFile(context)
@@ -672,7 +672,7 @@ private fun AttachButton(controller: ChatController, inTray: Int) {
                                 }
                             }
                         }
-                        MenuRow(ChatIcons.File, look.words.kind(ooo.doo.cnct.CnctAttachmentKind.DOCUMENT)) {
+                        MenuRow(ChatIcons.File, look.words(R.string.cnct_attach_files)) {
                             open = false
                             documents.launch(DOCUMENT_TYPES)
                         }

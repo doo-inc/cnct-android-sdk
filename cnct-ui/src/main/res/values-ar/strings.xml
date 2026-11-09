@@ -21,7 +21,7 @@
     <string name="cnct_see_all">عرض الكل (%1$s)</string>
     <string name="cnct_one_here">%1$s هنا للمساعدة</string>
     <string name="cnct_many_here">%1$s و%2$s هنا للمساعدة</string>
-    <string name="cnct_list_separator">، </string>
+    <string name="cnct_list_separator">"، "</string>
     <string name="cnct_reply_under1">يردّ عادةً خلال أقل من دقيقة</string>
     <string name="cnct_reply_few">يردّ عادةً خلال دقائق</string>
     <string name="cnct_reply20">يردّ عادةً خلال أقل من 20 دقيقة</string>

@@ -31,6 +31,7 @@ class StringTableTest {
 
     /** What Android reads out of a string resource. */
     private fun unescape(value: String): String = value
+        .let { if (it.length >= 2 && it.startsWith("\"") && it.endsWith("\"")) it.substring(1, it.length - 1) else it }
         .replace("\\'", "'")
         .replace("\\\"", "\"")
         .replace("\\n", "\n")

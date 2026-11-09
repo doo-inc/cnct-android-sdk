@@ -375,6 +375,7 @@ internal class ChatController(
             mutableNotice.value = when (error.code) {
                 CnctErrorCode.CONVERSATION_CLOSED -> null
                 CnctErrorCode.TOO_LARGE -> Notice.Word(R.string.cnct_too_big, listOf(file.name))
+                CnctErrorCode.TOO_MANY -> Notice.Word(R.string.cnct_too_many)
                 else -> if (error.status != null) Notice.Server(error.message) else Notice.Word(R.string.cnct_upload_failed, listOf(file.name))
             }
         } catch (_: Exception) {

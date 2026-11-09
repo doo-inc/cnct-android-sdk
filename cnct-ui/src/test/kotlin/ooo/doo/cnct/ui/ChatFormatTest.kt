@@ -67,6 +67,17 @@ class ChatFormatTest {
     }
 
     @Test
+    fun `the attach menu's words are the iOS SDK's, in both languages, and overridable`() {
+        val en = Words(Words.resourcesFor(context, CnctLanguage.EN), CnctLanguage.EN, emptyMap())
+        val ar = Words(Words.resourcesFor(context, CnctLanguage.AR), CnctLanguage.AR, mapOf("attachFiles" to "مستند"))
+        assertEquals(listOf("Photo library", "Take a photo", "Choose a file"), listOf(en(R.string.cnct_attach_photos), en(R.string.cnct_attach_camera), en(R.string.cnct_attach_files)))
+        assertEquals(listOf("مكتبة الصور", "التقاط صورة", "مستند"), listOf(ar(R.string.cnct_attach_photos), ar(R.string.cnct_attach_camera), ar(R.string.cnct_attach_files)))
+        // Labels for files: kind, name, size, with the language's own separator.
+        assertEquals("صورة، photo.jpg، 1.2 MB", ar.list(ar.kind(ooo.doo.cnct.CnctAttachmentKind.IMAGE), "photo.jpg", "1.2 MB"))
+        assertEquals("File, invoice.pdf", en.list(en.kind(ooo.doo.cnct.CnctAttachmentKind.DOCUMENT), "invoice.pdf", null))
+    }
+
+    @Test
     fun `sizes are decimal, Latin, and held left to right`() {
         assertEquals("⁦1.2 MB⁩", ChatFormat.size(1_200_000))
         assertEquals("⁦220 KB⁩", ChatFormat.size(220_000))

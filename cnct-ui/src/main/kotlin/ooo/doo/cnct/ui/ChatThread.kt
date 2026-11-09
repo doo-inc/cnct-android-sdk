@@ -377,13 +377,14 @@ private fun FlowMedia(media: CnctFlowMedia, ink: Color) {
         return
     }
     val name = media.filename ?: look.words(R.string.cnct_attachment)
-    val label = look.words(R.string.cnct_open_document, name)
+    val kind = if (media.kind == CnctFlowMediaKind.VIDEO) CnctAttachmentKind.VIDEO else CnctAttachmentKind.DOCUMENT
     FileRow(
         icon = if (media.kind == CnctFlowMediaKind.VIDEO) ChatIcons.Play else ChatIcons.File,
         name = name,
         detail = null,
         ink = ink,
-        label = label,
+        label = look.words.list(look.words.kind(kind), name),
+        action = look.words(R.string.cnct_open_document, name),
         onClick = { openUrl(context, url) },
     )
 }
@@ -412,8 +413,8 @@ private fun Attachment(attachment: CnctChatAttachment, mine: Boolean, ink: Color
     val scope = androidx.compose.runtime.rememberCoroutineScope()
     val name = attachment.filename ?: look.words(R.string.cnct_attachment)
     val size = ChatFormat.size(attachment.bytes)
-    val kindWord = look.words.kind(attachment.kind)
-    val label = listOfNotNull(kindWord, size).joinToString(", ")
+    // "Photo, photo.jpg, 1.2 MB" — the same shape of label on every CNCT SDK.
+    val label = look.words.list(look.words.kind(attachment.kind), name, size)
     val isImage = attachment.kind == CnctAttachmentKind.IMAGE || attachment.kind == CnctAttachmentKind.STICKER ||
         (attachment.kind == CnctAttachmentKind.OTHER && attachment.mimeType.startsWith("image/"))
     var failed by remember(attachment.id) { mutableStateOf(false) }
@@ -463,7 +464,8 @@ private fun Attachment(attachment: CnctChatAttachment, mine: Boolean, ink: Color
         name = name,
         detail = size,
         ink = ink,
-        label = look.words(R.string.cnct_open_document, name) + (size?.let { ", $it" } ?: ""),
+        label = label,
+        action = look.words(R.string.cnct_open_document, name),
         onClick = {
             if (store == null || attachment.id.isEmpty()) return@FileRow
             scope.launch {
@@ -486,6 +488,7 @@ private fun FileRow(
     detail: String?,
     ink: Color,
     label: String,
+    action: String,
     onClick: () -> Unit,
     framed: Boolean = true,
 ) {
@@ -495,8 +498,8 @@ private fun FileRow(
             .sizeIn(minHeight = 48.dp)
             .clip(RoundedCornerShape(10.dp))
             .background(ink.copy(alpha = if (framed) 0.08f else 0f))
-            .semantics { contentDescription = label }
-            .clickable(role = Role.Button, onClickLabel = label, onClick = onClick)
+            .semantics(mergeDescendants = true) { contentDescription = label }
+            .clickable(role = Role.Button, onClickLabel = action, onClick = onClick)
             .padding(horizontal = 10.dp, vertical = 8.dp),
         horizontalArrangement = Arrangement.spacedBy(10.dp),
         verticalAlignment = Alignment.CenterVertically,

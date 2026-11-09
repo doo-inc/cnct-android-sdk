@@ -119,6 +119,9 @@ abstract class GenerateCnctStrings : DefaultTask() {
                 .replace("'", "\\'")
                 .replace("\"", "\\\"")
                 .replace("\n", "\\n")
+            // Android trims leading and trailing whitespace and folds runs of it, unless the value is
+            // quoted: listSeparator is ", " and must keep its space.
+            if (value != value.trim() || value.contains("  ")) return "\"" + escaped + "\""
             return if (escaped.startsWith("@") || escaped.startsWith("?")) "\\" + escaped else escaped
         }
         fun xml(values: Map<String, String>): String = buildString {

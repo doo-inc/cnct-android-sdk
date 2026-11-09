@@ -21,7 +21,7 @@
     <string name="cnct_see_all">See all %1$s</string>
     <string name="cnct_one_here">%1$s is here to help</string>
     <string name="cnct_many_here">%1$s and %2$s are here to help</string>
-    <string name="cnct_list_separator">, </string>
+    <string name="cnct_list_separator">", "</string>
     <string name="cnct_reply_under1">Usually replies in under a minute</string>
     <string name="cnct_reply_few">Usually replies in a few minutes</string>
     <string name="cnct_reply20">Usually replies in under 20 minutes</string>

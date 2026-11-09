@@ -27,8 +27,10 @@ The rest of the visitor API, as CNCT's hosted chat page uses it (Part 1).
 - **Files both ways.** `upload(bytes | stream, filename, mimeType, onProgress)` sends one
   file as `multipart/form-data` (part `file`) with real per-file progress, after checking it against
   `CnctAttachmentRules` (10 files, 50 MB, the accepted types; HEIC/HEIF must be converted to JPEG). The
-  server's refusals keep its sentence and map to the usual codes (`409` is `conversation_closed`,
-  `422` is `invalid`); none clears the session. Uploads and downloads have no whole-call deadline.
+  server's refusals keep its sentence. New codes, the same on every CNCT SDK: `too_many` (the
+  eleventh file), `unsupported_type` (before upload, or `415`/`422`) and `attachments_disabled` (`403`,
+  `503`); `409` is `conversation_closed` and `413` `too_large`. None clears the session. Uploads and
+  downloads have no whole-call deadline.
 - `send(body, attachmentIds, replyId, clientKey)`: words, files or both, and the flow choice a visitor
   tapped (`choose(choice)` does it for you). Over the socket and over HTTP alike. `retry` resends the
   same files and choice under the same `clientKey`.

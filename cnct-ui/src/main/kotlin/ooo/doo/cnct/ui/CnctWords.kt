@@ -11,8 +11,9 @@ import java.util.Locale
 /**
  * Per-language overrides of any of the interface's words, keyed exactly as the shared table
  * `docs/chat-ui/strings.json` keys them — `writeMessage`, `notTakingChats` — with `{name}` where a
- * value goes, as in the table. A key you do not override keeps the table's words; a key that is not
- * in the table is ignored.
+ * value goes, as in the table. The attach menu's three words, which only the native SDKs have, are
+ * `attachPhotos`, `attachCamera` and `attachFiles`. A key you do not override keeps the table's
+ * words; a key that is not in the table is ignored.
  *
  * ```kotlin
  * CnctChatStrings(
@@ -55,6 +56,9 @@ internal class Words(
         return if (args.isEmpty()) resources.getString(res) else resources.getString(res, *args)
     }
 
+    /** Pieces of a list, with the language's own separator: "Photo, invoice.pdf, 220 KB". */
+    fun list(vararg parts: String?): String = parts.filterNot { it.isNullOrBlank() }.joinToString(invoke(R.string.cnct_list_separator))
+
     /** The words for an attachment kind, as a quote says it: "Photo", "File". */
     fun kind(kind: ooo.doo.cnct.CnctAttachmentKind): String = invoke(
         when (kind) {
@@ -67,7 +71,14 @@ internal class Words(
     )
 
     companion object {
-        private val byRes: Map<Int, CnctStringEntry> by lazy { CnctStringTable.entries.associateBy { it.res } }
+        /** The native SDKs' own words, outside the shared table — the same keys as the iOS SDK's. */
+        val PLATFORM: List<CnctStringEntry> = listOf(
+            CnctStringEntry("attachPhotos", R.string.cnct_attach_photos),
+            CnctStringEntry("attachCamera", R.string.cnct_attach_camera),
+            CnctStringEntry("attachFiles", R.string.cnct_attach_files),
+        )
+
+        private val byRes: Map<Int, CnctStringEntry> by lazy { (CnctStringTable.entries + PLATFORM).associateBy { it.res } }
 
         /** Resources in [language], whatever the device is set to. */
         fun resourcesFor(context: Context, language: CnctLanguage): Resources {
