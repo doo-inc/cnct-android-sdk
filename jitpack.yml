@@ -1,7 +1,14 @@
-# JitPack builds a tag on first request and serves both artifacts as
-#   com.github.doo-inc.cnct-android-sdk:cnct:<tag>
-#   com.github.doo-inc.cnct-android-sdk:cnct-android:<tag>
+# JitPack builds a tag on first request and serves the three artifacts as
+#   com.github.doo-inc.cnct-android-sdk:cnct:<tag>          the headless client, plain Kotlin/JVM
+#   com.github.doo-inc.cnct-android-sdk:cnct-android:<tag>  the Keystore-backed token store
+#   com.github.doo-inc.cnct-android-sdk:cnct-ui:<tag>       the Compose chat UI
 # It provides the Android SDK for a project that applies the Android Gradle Plugin.
-# Until there is a Maven Central release, this is how an app installs the SDK without credentials.
+#
+# The group and version are set here rather than left to JitPack's defaults, so each POM names the
+# others at exactly the coordinates JitPack serves them under — cnct-ui depends on cnct-android and
+# cnct, and a dependency on "1.0.0" where JitPack serves "v1.0.0" would not resolve. Tests are CI's
+# job: the commit a tag points at is green there first.
 jdk:
   - openjdk17
+install:
+  - ./gradlew publishToMavenLocal -Pgroup=$GROUP.$ARTIFACT -Pversion=$VERSION --console=plain

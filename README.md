@@ -1,26 +1,28 @@
 # CNCT for Android
 
-The official CNCT SDK for Android and Kotlin. Live chat, bookings and tickets against a CNCT
-workspace, using the credentials CNCT issues you.
+The official CNCT SDK for Android and Kotlin: a ready-made chat screen a business can brand, and
+under it a headless client for live chat, bookings and tickets against a CNCT workspace.
 
-> **Status: complete, not released.** Chat, bookings and tickets are ported from the
-> [Flutter SDK](https://github.com/doo-inc/cnct-flutter-sdk) 0.2.0, behaviour for behaviour, and
-> tested. There is no tag yet; do not depend on `main`.
+> **Status: 1.0.0, not yet tagged.** Built from the same spec as the web and iOS SDKs
+> ([`docs/chat-ui/SPEC.md`](docs/chat-ui/SPEC.md)), which ship 1.0.0 together. Until the `v1.0.0`
+> tag exists, do not depend on `main`.
 
-**It is headless, and that is the whole point.** There is no view in this library and no web view.
-A business building their own app has a design system already; shipping them a chat bubble to
-restyle answers a question they did not ask. So this ships state and events, and the interface is
-yours. [`sample`](sample) is a complete Compose chat screen built on it, in a few hundred lines you own
-and can delete.
+Three artifacts, so an app takes only what it uses:
 
-**The core is plain Kotlin on the JVM.** The same artifact runs in an Android app and on a server —
-which matters, because an API key belongs on a server. What needs the Android SDK — a token store
-that encrypts with an Android Keystore key — is a second, small artifact beside it.
+| Artifact       | What it is                                                                                 | Needs              |
+| -------------- | ------------------------------------------------------------------------------------------ | ------------------ |
+| `cnct-ui`      | **The chat screen**, in Jetpack Compose: brandable, English and Arabic, files both ways    | Android, Compose   |
+| `cnct-android` | The token store that keeps a visitor's session, encrypted with an Android Keystore key     | Android            |
+| `cnct`         | The headless client — chat, bookings, tickets — in plain Kotlin on the JVM                 | Nothing but a JVM  |
 
-Sister SDKs, same concepts and the same error codes:
+`cnct-ui` brings the other two with it. The headless core is plain Kotlin on purpose: the same
+artifact runs in an Android app and on a server, which matters, because an API key belongs on a
+server. Nothing with a UI dependency is in it.
+
+Sister SDKs, same concepts, same option names, same words and the same error codes:
 [web](https://github.com/doo-inc/cnct-web-sdk) ·
-[Flutter](https://github.com/doo-inc/cnct-flutter-sdk) ·
-[iOS](https://github.com/doo-inc/cnct-ios-sdk).
+[iOS](https://github.com/doo-inc/cnct-ios-sdk) ·
+[Flutter](https://github.com/doo-inc/cnct-flutter-sdk).
 
 ## Install
 
@@ -30,35 +32,251 @@ release. In `settings.gradle.kts`:
 ```kotlin
 dependencyResolutionManagement {
     repositories {
+        google()
         mavenCentral()
         maven("https://jitpack.io")
     }
 }
 ```
 
-and in the module:
+and in the app module, one of:
 
 ```kotlin
 dependencies {
-    // An Android app: the core, plus the Keystore-backed token store.
-    implementation("com.github.doo-inc.cnct-android-sdk:cnct-android:v0.1.0")
-    // A server, or anything else on the JVM: the core alone.
-    implementation("com.github.doo-inc.cnct-android-sdk:cnct:v0.1.0")
+    // The chat screen. Brings cnct-android and cnct with it.
+    implementation("com.github.doo-inc.cnct-android-sdk:cnct-ui:v1.0.0")
+
+    // Or headless: the client and the Keystore token store, and your own interface.
+    implementation("com.github.doo-inc.cnct-android-sdk:cnct-android:v1.0.0")
+
+    // Or on a server, or anywhere else on the JVM: the core alone.
+    implementation("com.github.doo-inc.cnct-android-sdk:cnct:v1.0.0")
 }
 ```
 
 Pin a tag: what a client ships is what their users run, and an SDK that moves under a released app
-is a bug report nobody can reproduce. Needs the `INTERNET` permission. Pulls in OkHttp,
-kotlinx.coroutines and kotlinx.serialization — most apps have all three already.
+is a bug report nobody can reproduce. The app declares the `INTERNET` permission; the chat screen
+asks for nothing else — the photo picker, the camera and the document picker are the system's own.
 
 **Below API 26, enable core library desugaring.** Timestamps are `java.time.Instant`, which Android
-has from 8.0; an app with a lower `minSdk` needs this in its module:
+has from 8.0; an app with a lower `minSdk` (the SDK's own is 21) needs this in its module:
 
 ```kotlin
 android {
     compileOptions { isCoreLibraryDesugaringEnabled = true }
 }
 dependencies { coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.5") }
+```
+
+**Publishing an App Bundle?** Play installs only the device's own languages unless you say
+otherwise, so an English phone would not have the chat's Arabic. If you let the chat speak Arabic
+on any phone — `language = CnctLanguage.AR`, or an inbox set to Arabic — keep every language:
+
+```kotlin
+android {
+    bundle { language { enableSplit = false } }
+}
+```
+
+## Chat UI in 10 lines
+
+```kotlin
+class SupportActivity : ComponentActivity() {
+    override fun onCreate(savedInstanceState: Bundle?) {
+        enableEdgeToEdge()
+        super.onCreate(savedInstanceState)
+        setContent {
+            CnctChat(publicKey = "the-inbox-public-key", onClose = ::finish)
+        }
+    }
+}
+```
+
+That is a complete chat: it asks the visitor's name (or lets them type first, as the inbox is set
+up), keeps their session in the Android Keystore so they come back to their own conversation,
+sends and receives photos and files, speaks English or Arabic, and brands itself from the inbox's
+settings in the CNCT console. It pads itself for the system bars and the keyboard and keeps its
+state across a rotation.
+
+**No Compose?** The same screen as an activity:
+
+```kotlin
+startActivity(CnctChatActivity.intent(this, publicKey = "the-inbox-public-key"))
+```
+
+### Options
+
+`CnctChat` takes the same options as the web's `<cnct-chat>` and the iOS `CnctChatView`:
+
+| Option      | What it is                                                                                         | Default |
+| ----------- | -------------------------------------------------------------------------------------------------- | ------- |
+| `client` / `publicKey` | A `CnctChatClient` you made, or an inbox's public key (the screen then makes the client) | required |
+| `baseUrl`   | Where CNCT is, with `publicKey`                                                                    | `https://app.doo.ooo` |
+| `theme`     | A `CnctChatTheme` — see [Theming](#theming)                                                        | the console's, then built in |
+| `language`  | `EN`, `AR`, or `AUTO` (the device's first of the two)                                              | the console's, then the device |
+| `strings`   | `CnctChatStrings(en = …, ar = …)`: your own words for any key of the [shared table](docs/chat-ui/strings.json) | none |
+| `identity`  | A signed-in user — see [Signed-in users](#signed-in-users)                                         | anonymous |
+| `onClose`   | The header's close button. Without it there is none                                                | none |
+| `onEvent`   | `CnctChatUIEvent`s for analytics: `Opened`, `Started`, `Sent`, `AttachmentSent(count)`, `Ended`, `Rated(score)` — never what anybody wrote | none |
+
+Passing your own client keeps the headless API in your hands while the screen draws it — make it on
+a `viewModelScope` with the Keystore store, as in [Headless chat](#headless-chat). The screen never
+closes a client it did not make.
+
+## Theming
+
+**What the app passes wins over the inbox's widget settings in the CNCT console, which win over the
+built-in defaults.** So a business can brand the chat from the console with no code at all, and an
+app can pin anything it wants in code. Leave a token out to let the console decide it.
+
+```kotlin
+CnctChat(
+    publicKey = "the-inbox-public-key",
+    theme = CnctChatTheme(
+        colors = CnctChatColors(primary = Color(0xFFD7262E)),  // both appearances
+        dark = CnctChatColors(background = Color.Black),       // one of them
+        cornerRadius = 8.dp,
+        font = FontFamily(Font(R.font.brand_regular), Font(R.font.brand_bold, FontWeight.SemiBold)),
+        logo = painterResource(R.drawable.logo),
+        appearance = CnctAppearance.SYSTEM,
+    ),
+)
+```
+
+The tokens have the same names in every CNCT SDK:
+
+| Token             | Meaning                                         | Default |
+| ----------------- | ----------------------------------------------- | ------- |
+| `primary`         | Brand colour: send button, links, header accent | the console's `brand.color`, else `#b52d93` |
+| `onPrimary`       | Text and icons on `primary`                     | black or white, whichever reads (the server's contrast rule) |
+| `background`      | The screen                                      | light `#ffffff` / dark `#0f1115` |
+| `surface`         | Header, composer, cards                         | light `#f6f7f9` / dark `#171a21` |
+| `text`            | Main text                                       | light `#111418` / dark `#eef0f3` |
+| `textMuted`       | Timestamps, hints                               | light `#5b6573` / dark `#9aa3af` |
+| `border`          | Dividers, outlines                              | light `#e3e6ea` / dark `#2a2f38` |
+| `visitorBubble` / `onVisitorBubble` | The customer's own messages   | `primary` / `onPrimary` |
+| `agentBubble` / `onAgentBubble`     | The team's and the assistant's | `surface` / `text` |
+| `cornerRadius`    | Bubbles and cards                               | 18 dp |
+| `font`            | A Compose `FontFamily`                          | the system's |
+| `logo`            | A `Painter` for the header                      | the console's `avatarUrl`, else the business's first letter on `primary` |
+| `title`           | The header title                                | the business's name |
+| `appearance`      | `LIGHT`, `DARK` or `SYSTEM`                     | the console's (`auto` there is `SYSTEM`) |
+| `showPoweredBy`   | The "Powered by CNCT" line                      | the console's `showBranding` |
+
+The colour tokens live in `CnctChatColors`: `colors` applies to both appearances and `light` and
+`dark` to one, winning over `colors`. Light and dark each keep their own defaults, so setting only
+`primary` leaves both readable. **The chat never uses or changes your `MaterialTheme`**: it draws
+with these tokens alone and looks the same in a Material 2, Material 3 or no-Material app.
+
+## Arabic and right-to-left
+
+Every word of the interface is in English and Arabic — the same table, word for word, as the web
+and iOS SDKs ([`docs/chat-ui/strings.json`](docs/chat-ui/strings.json), shipped as
+`values/strings.xml` and `values-ar/strings.xml`).
+
+- **Choosing.** `language = AUTO` takes the first of the device's preferred languages that is
+  Arabic or English, else English. Leave it out and the console's setting decides.
+- **Mirroring.** Arabic mirrors the whole screen — header, composer, which side bubbles sit on (the
+  visitor's own are on the trailing side in both directions), the send arrow — through Compose's
+  layout direction, not swapped margins. The app's manifest needs `android:supportsRtl="true"`.
+- **Each message takes its own direction** from its first strong letter, whatever the interface's
+  language: an Arabic message in an English chat reads right to left, and the reverse.
+- **Numbers stay whole.** Phone numbers, emails, web addresses and file sizes are held left to
+  right inside Arabic text, so "+973 3311 2233" never turns into "2233 3311 973+".
+- **Latin digits** in Arabic, as Gulf apps write them; times and dates in the chosen language.
+- The business's own words — the greeting, a flow's questions — are shown as written.
+
+Your own words for any key, per language, with `{name}` placeholders as in the table:
+
+```kotlin
+CnctChat(
+    publicKey = "the-inbox-public-key",
+    strings = CnctChatStrings(
+        en = mapOf("writeMessage" to "Ask us anything…"),
+        ar = mapOf("writeMessage" to "اسألنا عن أي شيء…"),
+    ),
+)
+```
+
+## Attachments
+
+Customers send photos and files; the team's come back in the thread.
+
+- **Picking**: the photo picker (several at once), the camera on phones that have one, and the
+  document picker. No storage or camera permission is asked for.
+- **Before anything is sent**: up to **10** files a message, **50 MB** each, and only the types the
+  platform keeps — images `jpeg`, `png`, `webp`, `gif`; audio `aac`, `mpeg`, `ogg`, `mp4`, `amr`;
+  video `mp4`, `3gpp`, `quicktime`; `pdf`, `doc`, `docx`, `xlsx`, `txt`, `csv`. Anything else is
+  refused with a sentence before a byte is uploaded.
+- **Photos are made fit to send**: HEIC and HEIF become JPEG (the platform does not keep HEIC), and
+  anything over 2560 pixels on its long side is brought down to it. Never up; other files untouched.
+- **Each file goes up at once**, with its own progress ring in the tray above the composer; send
+  waits for them.
+- **Received photos** show inline and open full screen (pinch to zoom); **other files** are cards
+  that download with the visitor's session and open in the phone's own viewer, or the share sheet.
+
+Headless, the same is two calls — upload each file, then send their ids:
+
+```kotlin
+val photo = chat.upload(bytes, filename = "receipt.jpg", mimeType = "image/jpeg") { progress ->
+    // 0.0 – 1.0, from OkHttp's thread, as the bytes leave
+}
+chat.send("Here is the receipt", attachmentIds = listOf(photo.id))
+```
+
+`upload` checks the file with `CnctAttachmentRules` first and takes bytes or a stream; converting
+HEIC is yours to do headless (`cnct-ui` does it for you). `downloadAttachment(id)` answers a file's
+bytes, from any of this visitor's conversations.
+
+## Signed-in users
+
+If your app has its own sign-in, tell the chat who the visitor is, and their conversations follow
+them between devices and the team sees who they are talking to:
+
+```kotlin
+CnctChat(
+    publicKey = "the-inbox-public-key",
+    identity = CnctChatIdentity(
+        userId = user.id,
+        userHash = user.cnctHash,   // from YOUR server — see below
+        name = user.name,
+        email = user.email,
+    ),
+)
+```
+
+`userHash` is `HMAC-SHA256(userId, the inbox's identity secret)` in lowercase hex, **computed on your
+own server** and handed to the app with the user's session. In Node:
+
+```js
+import { createHmac } from 'node:crypto';
+
+// The inbox's identity secret, from the CNCT console. Server-side only.
+const secret = process.env.CNCT_IDENTITY_SECRET;
+
+app.get('/me', requireLogin, (req, res) => {
+  const userHash = createHmac('sha256', secret).update(req.user.id).digest('hex');
+  res.json({ id: req.user.id, name: req.user.name, email: req.user.email, cnctHash: userHash });
+});
+```
+
+> **Never put the identity secret in an app.** Anybody with the APK has everything in it, and the
+> secret signs in as *any* of your users. The app only ever holds the hash for the user who is
+> signed in.
+
+The identity is applied before anything else is read, so the conversations shown are the user's.
+An anonymous chat started before they signed in moves across. If it is refused — identity is not set
+up for the inbox (`409`), or the hash does not verify (`401`) — it is logged for you and the
+customer still gets a working, anonymous chat. Headless, it is `chat.identify(identity)`.
+
+## Previews, tests and a demo with no key
+
+`CnctChatFixture` is the conversation every CNCT SDK renders for its screenshots — a greeting, a
+question, the assistant's answer with buttons, a photo, an invoice, a failed message and two files
+on their way up — on an in-process fake of the platform. No key, no network, and the real screen:
+
+```kotlin
+CnctChatFixture.Chat(language = CnctLanguage.AR, theme = myTheme)
 ```
 
 ## The host
@@ -138,7 +356,11 @@ sandbox per account**, shared by all its sandbox keys.
 Live chat has no sandbox mode — its credential is an inbox's public key, not an API key. To build a
 chat screen without landing in the team's real queue, ask for a second web inbox and use its key.
 
-## Chat
+## Headless chat
+
+**Your own interface, or none.** The chat screen above is built only on this client's public API, so
+anything it does, an app can do itself: the client ships state and events, and the interface is
+yours. It is also what a server, a bot or a test talks to — it is plain Kotlin on the JVM.
 
 ```kotlin
 class ChatViewModel(application: Application) : AndroidViewModel(application) {
@@ -253,23 +475,37 @@ functions — implement `CnctTokenStore`.
 
 ### Identity
 
-A visitor is anonymous until they volunteer a phone number. If your app has already signed this
-person in, **pass the number you hold**: it is the difference between a thread that joins their
-history and one that starts a second record for them.
-
-```kotlin
-chat.start(displayName = user.name, phone = user.phone)
-```
-
-There is no signed identity handshake yet, so this is the honest weak spot of the channel, and
-`start(phone = …)` is the way around it today.
+A visitor is anonymous until they say who they are. If your app signs people in, use a signed
+identity — `chat.identify(CnctChatIdentity(userId, userHash, …))`, see
+[Signed-in users](#signed-in-users) — before `resume()`. Short of that, pass the phone number you
+hold to `start(phone = …)`: it is the difference between a thread that joins their history and one
+that starts a second record for them.
 
 ### Files
 
-`downloadAttachment(id)` answers the bytes of a file an operator sent. For an image loader,
-`attachmentRequest(id)` answers the URL and the headers it needs — the route is authenticated by the
-session header, which a plain image URL cannot carry. Hand those headers to the loader, never to a
-log; `toString()` prints their names only.
+`upload(…)` sends a file up and `send(attachmentIds = …)` sends it — see [Attachments](#attachments).
+`downloadAttachment(id)` answers a file's bytes. For an image loader, `attachmentRequest(id)` answers
+the URL and the headers it needs — the route is authenticated by the session header, which a plain
+image URL cannot carry. Hand those headers to the loader, never to a log; `toString()` prints their
+names only.
+
+### The rest of the visitor API
+
+| Call | What it does |
+| ---- | ------------ |
+| `send(body, attachmentIds, replyId)` | Words, files, or both. `replyId` is the flow choice tapped |
+| `choose(choice)` | Tap a flow choice: its title as the words, its id as `replyId` |
+| `upload(…)` | One file up, with progress |
+| `identify(identity)` | Sign the visitor in as your user |
+| `updateProfile(displayName, phone)` | Save the name a visitor who typed first gives |
+| `conversations()` / `conversation(id)` | Their conversations, newest first; one, with its messages |
+| `read()` | The team's reply is on screen: report it, once per reply |
+| `rate(score, comment)` | 1–5 on a closed conversation, then a comment as a second answer |
+
+`state` also says what a flow is waiting for (`awaiting`: its choices, or the kind of answer to
+type), the assistant's `suggestions`, and whether the visitor's last words were `seen`. `events`
+adds `MessageUpdated` (a message edited, or a file finished storing — already replaced in place)
+and `Read` (the team read up to a time).
 
 ## Bookings and tickets
 
@@ -387,14 +623,16 @@ validation.
 ## Limits
 
 Thirty messages a minute per visitor, five session starts a minute per IP, four thousand characters a
-message. The socket counts the same thirty the HTTP path does, so moving between them buys nothing.
+message, ten files a message and 50 MB a file. The socket counts the same thirty the HTTP path does,
+so moving between them buys nothing.
 
 ## The sample app
 
-[`sample`](sample) is a Compose chat screen on the headless client: header and connection status,
-bubbles with pending and failed states and a retry, ticket and booking cards, typing, a pre-chat step
-for an inbox that wants a phone number, the Keystore token store, and a socket that sleeps in the
-background. Put your inbox's public key in `local.properties` (git ignores it) and run it:
+[`sample`](sample) is the chat screen with the switches a reviewer wants: the language (device,
+English, Arabic), the appearance (system, light, dark), the theme (the console's, or a custom one —
+brand red, 8 dp corners, its own font and logo), and a **fixture mode that needs no key**. With a
+key it opens the live chat as a composable or as `CnctChatActivity`. Put your inbox's public key in
+`local.properties` (git ignores it) for live mode:
 
 ```properties
 cnct.publicKey=your-inbox-public-key
@@ -406,18 +644,28 @@ cnct.baseUrl=http://10.0.2.2:3001
 ./gradlew :sample:installDebug
 ```
 
+The custom theme's font is [Tajawal](https://fonts.google.com/specimen/Tajawal), under the SIL Open
+Font License ([`sample/TAJAWAL-OFL.txt`](sample/TAJAWAL-OFL.txt)).
+
 ## Development
 
 ```sh
-./gradlew build      # compile (warnings are errors), test, jars and AARs, lint
+./gradlew build        # compile (warnings are errors), test, jars and AARs, lint
 ./gradlew :cnct:build  # the core alone — no Android SDK needed
+./gradlew :cnct-ui:generateCnctStrings  # after docs/chat-ui/strings.json changes
+./gradlew :cnct-ui:testDebugUnitTest --tests 'ooo.doo.cnct.ui.ChatScreenshotTest' -Proborazzi.test.record=true
+                       # the screenshots, into cnct-ui/build/outputs/roborazzi
 ```
 
 The core's tests run against fakes — an in-process HTTP answerer and a fake socket — on `runTest`'s
 virtual clock, so reconnect backoff, send timeouts and keep-alives are tested without waiting for
-them. The token store's tests run on Robolectric. CI runs `./gradlew build publishToMavenLocal` on
-every pull request with JDK 17 and the Android SDK. A tag `vX.Y.Z` must match `version` in
-`gradle.properties`, and a test keeps `CnctConfig.SDK_VERSION` equal to it.
+them; uploads are also tested over a real socket against MockWebServer. The token store's and the
+chat UI's tests run on Robolectric. CI runs `./gradlew build publishToMavenLocal` on every pull
+request with JDK 17 and the Android SDK, then renders the fixture conversation with Roborazzi and
+uploads the PNGs as the artifact **`screenshots`**: `chat-{en,ar}-{light,dark}.png`,
+`chat-{en,ar}-custom.png`, and the name form and the ended conversation in both languages. A tag
+`vX.Y.Z` must match `version` in `gradle.properties`, and a test keeps `CnctConfig.SDK_VERSION`
+equal to it.
 
 ## Licence
 
