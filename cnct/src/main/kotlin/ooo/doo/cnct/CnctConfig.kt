@@ -133,7 +133,7 @@ public class CnctConfig(
          * The version this SDK reports in its `User-Agent`. Kept in step with `version` in
          * `gradle.properties` by a test.
          */
-        public const val SDK_VERSION: String = "0.1.0"
+        public const val SDK_VERSION: String = "1.0.0"
 
         /**
          * One path segment, percent-encoded — for an id that is about to go into a path. A `/` in it

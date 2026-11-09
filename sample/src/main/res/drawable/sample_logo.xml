@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- A made-up mark for the custom theme: a white wave on red. Nobody's brand. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="64dp"
+    android:height="64dp"
+    android:viewportWidth="64"
+    android:viewportHeight="64">
+    <path android:fillColor="#D7262E" android:pathData="M0,0h64v64h-64z" />
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M12,38C20,26 28,26 32,34C36,42 44,42 52,30V40C44,52 36,52 32,44C28,36 20,36 12,48Z M32,14A6,6 0,1 1,32 26A6,6 0,1 1,32 14Z" />
+</vector>

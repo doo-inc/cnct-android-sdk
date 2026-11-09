@@ -1,8 +1,19 @@
 # Changelog
 
-## Unreleased
+## 1.0.0 — not yet tagged
 
-The rest of the visitor API, as CNCT's hosted chat page uses it (`docs/chat-ui/SPEC.md`, Part 1).
+Shipped together with the web and iOS SDKs' 1.0.0, from one spec (`docs/chat-ui/SPEC.md`): a
+ready-made chat interface a business can brand, Arabic and right-to-left, files both ways, and the
+rest of the visitor API. Install pinned to `v1.0.0` once it is tagged; see the README.
+
+**Breaking, from 0.1.0** (which was never tagged): `send(body, clientKey)` is now
+`send(body, attachmentIds, replyId, clientKey)` — positional callers passing a client key name it;
+`CnctChatConversation` and `CnctChatVisitor` gain fields; `CnctChatEvent` gains `MessageUpdated` and
+`Read`, so an exhaustive `when` over it needs the two new branches.
+
+### Headless (`cnct`)
+
+The rest of the visitor API, as CNCT's hosted chat page uses it (Part 1).
 
 - **The inbox** (`boot()`) carries `widget` — the business's brand (`color`, `appearance`, `avatarUrl`,
   `language`, `showBranding`) and chat settings (`allowAttachments`, `allowEndConversation`, `start`,
@@ -34,8 +45,10 @@ The rest of the visitor API, as CNCT's hosted chat page uses it (`docs/chat-ui/S
   When a conversation closes, the client asks the server whether it can be rated.
 - The session start and resume send the device's IANA `timezone`.
 
-**`cnct-ui`**, a third artifact: CNCT's chat, ready-made, in Jetpack Compose (`docs/chat-ui/SPEC.md`,
-Part 2). Built only on the headless client's public API.
+### The chat UI (`cnct-ui`)
+
+A third artifact: CNCT's chat, ready-made, in Jetpack Compose (Part 2). Built only on the headless
+client's public API.
 
 - `CnctChat(client | publicKey, theme, language, strings, identity, onClose, onEvent)`, and
   `CnctChatActivity.intent(…)` for apps without Compose.
@@ -53,13 +66,26 @@ Part 2). Built only on the headless client's public API.
   retry) messages, "Seen", an offline line, the name card for visitors who typed first, "End chat",
   the rating card and "Start a new conversation".
 - Files: the photo picker, the camera (through a `FileProvider`) and the document picker — no
-  storage permissions. Checked before upload, uploaded at once with a progress ring, HEIC/HEIF
+  storage permissions. The attach menu's words (`attachPhotos`, `attachCamera`, `attachFiles`) are
+  outside the shared table, the same keys and words as the iOS SDK's. Checked before upload, uploaded at once with a progress ring, HEIC/HEIF
   converted to JPEG and photos brought down to 2560 px. Received photos inline (tap for a zoomable
   viewer), other files as cards that open in the phone's own viewer or the share sheet.
 - `CnctChatFixture`: the shared fixture conversation on an in-process fake server, for previews,
   tests and a demo with no key. CI renders it with Roborazzi and uploads the PNGs as `screenshots`.
 
-## Unreleased — 0.1.0
+### The release (Parts 3 and 4)
+
+- `version=1.0.0` and `CnctConfig.SDK_VERSION` (a test keeps them equal).
+- JitPack builds and serves all three artifacts — `cnct`, `cnct-android`, `cnct-ui` — as
+  `com.github.doo-inc.cnct-android-sdk:<artifact>:v1.0.0`; `cnct-ui`'s POM depends on the other two
+  at the same coordinates. The release workflow attaches all three.
+- The README leads with the chat UI in ten lines, then theming, Arabic and RTL, files, signed-in
+  users (with the server-side HMAC example), then the headless API.
+- `sample` is the chat UI with switches for language, appearance and the custom theme, and a fixture
+  mode that needs no key. The hand-built headless screen it had is gone: `cnct-ui` is that, done
+  properly.
+
+## 0.1.0 — never tagged
 
 - The foundation, matching the Flutter and web SDKs at 0.2.0: `Cnct`, `CnctConfig` (production
   `https://app.doo.ooo` by default, path prefixes kept, the socket origin derived), `CnctHosts`,

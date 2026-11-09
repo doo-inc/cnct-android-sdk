@@ -33,7 +33,7 @@ android {
         minSdk = 21
         targetSdk = 35
         versionCode = 1
-        versionName = "1.0"
+        versionName = "1.0.0"
         buildConfigField("String", "CNCT_PUBLIC_KEY", quoted(setting("cnct.publicKey")))
         buildConfigField("String", "CNCT_BASE_URL", quoted(setting("cnct.baseUrl")))
     }
@@ -59,7 +59,8 @@ kotlin {
 }
 
 dependencies {
-    implementation(project(":cnct-android"))
+    // The chat UI, which brings the headless client and the Keystore token store with it.
+    implementation(project(":cnct-ui"))
 
     implementation(platform(libs.compose.bom))
     implementation(libs.compose.ui)
