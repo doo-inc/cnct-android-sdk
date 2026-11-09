@@ -186,7 +186,9 @@ and iOS SDKs ([`docs/chat-ui/strings.json`](docs/chat-ui/strings.json), shipped 
 - **Latin digits** in Arabic, as Gulf apps write them; times and dates in the chosen language.
 - The business's own words — the greeting, a flow's questions — are shown as written.
 
-Your own words for any key, per language, with `{name}` placeholders as in the table:
+Your own words for any key, per language, with `{name}` placeholders as in the table. The attach
+menu's three words, which only the native SDKs need, are `attachPhotos`, `attachCamera` and
+`attachFiles`:
 
 ```kotlin
 CnctChat(
@@ -227,6 +229,18 @@ chat.send("Here is the receipt", attachmentIds = listOf(photo.id))
 `upload` checks the file with `CnctAttachmentRules` first and takes bytes or a stream; converting
 HEIC is yours to do headless (`cnct-ui` does it for you). `downloadAttachment(id)` answers a file's
 bytes, from any of this visitor's conversations.
+
+A refused file keeps the server's sentence for a person, and its code is the same on every CNCT SDK:
+
+| Code                   | When |
+| ---------------------- | ---- |
+| `too_many`             | The eleventh file of a message — said before anything is uploaded |
+| `too_large`            | Over 50 MB, before upload or answered `413` |
+| `unsupported_type`     | A type the chat does not take, HEIC included — before upload, or `415`/`422` |
+| `attachments_disabled` | The inbox takes no files (`403`), or the deployment keeps none (`503`) |
+| `conversation_closed`  | The conversation ended while the file was on its way (`409`) |
+
+None of them touches the session: a `403` here is not `unauthenticated`.
 
 ## Signed-in users
 

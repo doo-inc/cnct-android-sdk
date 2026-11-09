@@ -66,7 +66,8 @@ client's public API.
   retry) messages, "Seen", an offline line, the name card for visitors who typed first, "End chat",
   the rating card and "Start a new conversation".
 - Files: the photo picker, the camera (through a `FileProvider`) and the document picker — no
-  storage permissions. Checked before upload, uploaded at once with a progress ring, HEIC/HEIF
+  storage permissions. The attach menu's words (`attachPhotos`, `attachCamera`, `attachFiles`) are
+  outside the shared table, the same keys and words as the iOS SDK's. Checked before upload, uploaded at once with a progress ring, HEIC/HEIF
   converted to JPEG and photos brought down to 2560 px. Received photos inline (tap for a zoomable
   viewer), other files as cards that open in the phone's own viewer or the share sheet.
 - `CnctChatFixture`: the shared fixture conversation on an in-process fake server, for previews,
