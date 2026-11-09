@@ -431,7 +431,7 @@ public class CnctChatClient(
     /**
      * Say something — words, files, or both. Answers once the server has it.
      *
-     * [attachmentIds] are files already sent up with [uploadAttachment], up to ten. [replyId] is the
+     * [attachmentIds] are files already sent up with [upload], up to ten. [replyId] is the
      * `id` of the flow choice the visitor tapped; send the choice's title as [body] — or call
      * [choose], which does both.
      *
@@ -567,14 +567,14 @@ public class CnctChatClient(
      * big, `422` the wrong type ([CnctErrorCode.INVALID]), `503` this deployment keeps no files. None of
      * them clears the session.
      */
-    public suspend fun uploadAttachment(
+    public suspend fun upload(
         content: ByteArray,
         filename: String,
         mimeType: String,
         onProgress: ((Float) -> Unit)? = null,
     ): CnctChatAttachment {
         val type = CnctAttachmentRules.normalise(mimeType, filename)
-        return upload(filename, type, content.size.toLong(), content.toRequestBody(type.toMediaTypeOrNull()), onProgress)
+        return sendUp(filename, type, content.size.toLong(), content.toRequestBody(type.toMediaTypeOrNull()), onProgress)
     }
 
     /**
@@ -582,7 +582,7 @@ public class CnctChatClient(
      * time the bytes are written (OkHttp may write a body more than once on a retried connection), and
      * [size] must be its exact length in bytes.
      */
-    public suspend fun uploadAttachment(
+    public suspend fun upload(
         size: Long,
         filename: String,
         mimeType: String,
@@ -590,10 +590,10 @@ public class CnctChatClient(
         open: () -> InputStream,
     ): CnctChatAttachment {
         val type = CnctAttachmentRules.normalise(mimeType, filename)
-        return upload(filename, type, size, StreamRequestBody.of(type, size, open), onProgress)
+        return sendUp(filename, type, size, StreamRequestBody.of(type, size, open), onProgress)
     }
 
-    private suspend fun upload(
+    private suspend fun sendUp(
         filename: String,
         type: String,
         size: Long,
