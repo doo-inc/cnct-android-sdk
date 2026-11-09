@@ -458,7 +458,7 @@ public class CnctChatClient(
         // Words, files, or both — never neither. The server refuses an empty body with no files.
         if (text.isEmpty() && files.isEmpty()) throw CnctException("Nothing to send.", code = CnctErrorCode.EMPTY)
         if (files.size > CnctAttachmentRules.MAX_FILES) {
-            throw CnctException("Up to ${CnctAttachmentRules.MAX_FILES} files at a time.", code = CnctErrorCode.INVALID)
+            throw CnctException("Up to ${CnctAttachmentRules.MAX_FILES} files at a time.", code = CnctErrorCode.TOO_MANY)
         }
         val key = clientKey ?: uid()
         val sending = Outgoing(text, files, replyId?.takeIf { it.isNotEmpty() })
@@ -557,14 +557,16 @@ public class CnctChatClient(
      * from 0 to 1, reported from OkHttp's thread as the bytes leave.
      *
      * Checked before a byte is sent, with [CnctAttachmentRules]: over 50 MB is
-     * [CnctErrorCode.TOO_LARGE], a type the platform does not keep is [CnctErrorCode.INVALID] — HEIC
-     * included, which is converted to JPEG rather than refused (`cnct-ui` does it for you). This
-     * artifact is plain Kotlin, so it takes bytes and a MIME type rather than an Android `Uri`; see
-     * the other overload for a stream.
+     * [CnctErrorCode.TOO_LARGE], a type the platform does not keep is
+     * [CnctErrorCode.UNSUPPORTED_TYPE] — HEIC included, which is converted to JPEG rather than refused
+     * (`cnct-ui` does it for you). This artifact is plain Kotlin, so it takes bytes and a MIME type
+     * rather than an Android `Uri`; see the other overload for a stream.
      *
-     * The server's refusals arrive with its own sentence for a person in the message: `403` the inbox
-     * takes no files, `409` the conversation has ended ([CnctErrorCode.CONVERSATION_CLOSED]), `413` too
-     * big, `422` the wrong type ([CnctErrorCode.INVALID]), `503` this deployment keeps no files. None of
+     * The server's refusals arrive with its own sentence for a person in the message, and the codes
+     * every CNCT SDK uses for them: `403` the inbox takes no files and `503` this deployment keeps
+     * none ([CnctErrorCode.ATTACHMENTS_DISABLED]), `409` the conversation has ended
+     * ([CnctErrorCode.CONVERSATION_CLOSED]), `413` too big ([CnctErrorCode.TOO_LARGE]), `415`/`422`
+     * the wrong type ([CnctErrorCode.UNSUPPORTED_TYPE]). A code the server names itself wins. None of
      * them clears the session.
      */
     public suspend fun upload(
@@ -623,15 +625,19 @@ public class CnctChatClient(
     }
 
     /**
-     * The usual codes for an upload's refusals, where the server did not name its own. The sentence
-     * is the server's, for a person, and is kept.
+     * The attachment codes for an upload's refusals, where the server did not name its own — the
+     * same on the web and iOS SDKs. The sentence is the server's, for a person, and is kept.
      */
     private fun uploadRefusal(error: CnctException): CnctException {
         val named = (error.details as? JsonObject)?.string("code") != null
         val code = when {
             named -> error.code
+            // The inbox takes no files. Not `unauthenticated`, which is what a bare 403 reads as
+            // anywhere else: the session is fine, and clearing it would strand the conversation.
+            error.status == 403 || error.status == 503 -> CnctErrorCode.ATTACHMENTS_DISABLED
             error.status == 409 -> CnctErrorCode.CONVERSATION_CLOSED
-            error.status == 422 -> CnctErrorCode.INVALID
+            error.status == 413 -> CnctErrorCode.TOO_LARGE
+            error.status == 415 || error.status == 422 -> CnctErrorCode.UNSUPPORTED_TYPE
             else -> error.code
         }
         return if (code == error.code) error else CnctException(error.message, code, error.status, error.details, error)

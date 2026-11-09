@@ -276,7 +276,7 @@ class ChatVisitorApiTest {
 
         assertEquals(CnctErrorCode.EMPTY, assertFailsWith<CnctException> { chat.send("  ") }.code)
         val eleven = (1..11).map { "att_$it" }
-        assertEquals(CnctErrorCode.INVALID, assertFailsWith<CnctException> { chat.send("x", attachmentIds = eleven) }.code)
+        assertEquals(CnctErrorCode.TOO_MANY, assertFailsWith<CnctException> { chat.send("x", attachmentIds = eleven) }.code)
         assertTrue(posted("/api/chat/public/messages").isEmpty())
     }
 
@@ -407,10 +407,10 @@ class ChatVisitorApiTest {
         }
         assertEquals(CnctErrorCode.TOO_LARGE, big.code)
         val heic = assertFailsWith<CnctException> { chat.upload(ByteArray(4), "IMG_0001.HEIC", "image/heic") }
-        assertEquals(CnctErrorCode.INVALID, heic.code)
+        assertEquals(CnctErrorCode.UNSUPPORTED_TYPE, heic.code)
         assertTrue(heic.message.contains("JPEG"))
         val exe = assertFailsWith<CnctException> { chat.upload(ByteArray(4), "setup.exe", "application/x-msdownload") }
-        assertEquals(CnctErrorCode.INVALID, exe.code)
+        assertEquals(CnctErrorCode.UNSUPPORTED_TYPE, exe.code)
 
         assertTrue(seen.isEmpty())
     }
@@ -437,18 +437,27 @@ class ChatVisitorApiTest {
     }
 
     @Test
-    fun `the server's refusals map to the usual codes, keep its sentence, and never clear the session`() = runTest {
+    fun `the server's refusals map to the attachment codes, keep its sentence, and never clear the session`() = runTest {
         var status = 409
-        answers["/api/chat/public/attachments"] = { FakeHttp.Answer(status, """{"error":"A sentence for a person."}""") }
+        var body = """{"error":"A sentence for a person."}"""
+        answers["/api/chat/public/attachments"] = { FakeHttp.Answer(status, body) }
         val store = CnctTokenStore.memory()
         val chat = clientWith(store)
         chat.start(displayName = "Layla")
 
+        // A code the server names itself wins.
+        status = 422
+        body = """{"error":"A sentence for a person.","code":"file_scanned_unsafe"}"""
+        assertEquals("file_scanned_unsafe", assertFailsWith<CnctException> { chat.upload(ByteArray(4), "a.png", "image/png") }.code)
+        body = """{"error":"A sentence for a person."}"""
+
         val expected = mapOf(
-            403 to CnctErrorCode.UNAUTHENTICATED,
+            // The inbox takes no files: not a dead session.
+            403 to CnctErrorCode.ATTACHMENTS_DISABLED,
             413 to CnctErrorCode.TOO_LARGE,
-            422 to CnctErrorCode.INVALID,
-            503 to CnctErrorCode.SERVER_ERROR,
+            415 to CnctErrorCode.UNSUPPORTED_TYPE,
+            422 to CnctErrorCode.UNSUPPORTED_TYPE,
+            503 to CnctErrorCode.ATTACHMENTS_DISABLED,
             409 to CnctErrorCode.CONVERSATION_CLOSED,
         )
         for ((answer, code) in expected) {
@@ -457,6 +466,7 @@ class ChatVisitorApiTest {
             assertEquals(code, error.code, "for $answer")
             assertEquals("A sentence for a person.", error.message)
             assertEquals(answer, error.status)
+            assertFalse(error.isUnauthenticated)
             assertTrue(chat.hasSession, "after $answer")
         }
         assertEquals("visitor-token-1", store.read("cnct_chat_$PUBLIC_KEY"))

@@ -100,8 +100,9 @@ public object CnctAttachmentRules {
 
     /**
      * The refusal this file would get, or null when it may go. [CnctErrorCode.TOO_LARGE] for a file
-     * over [MAX_BYTES]; [CnctErrorCode.INVALID] for a type the platform does not keep, HEIC included
-     * — convert that first.
+     * over [MAX_BYTES]; [CnctErrorCode.UNSUPPORTED_TYPE] for a type the platform does not keep, HEIC
+     * included — convert that first. (The eleventh file of a message is [CnctErrorCode.TOO_MANY],
+     * which only the caller holding the other ten can say.)
      */
     public fun check(filename: String, size: Long, mimeType: String?): CnctException? {
         val type = normalise(mimeType, filename)
@@ -111,11 +112,11 @@ public object CnctAttachmentRules {
         if (type in CONVERT_TO_JPEG) {
             return CnctException(
                 "$filename is a HEIC/HEIF photo, which is not accepted. Convert it to JPEG first.",
-                code = CnctErrorCode.INVALID,
+                code = CnctErrorCode.UNSUPPORTED_TYPE,
             )
         }
         if (type !in ACCEPTED_TYPES) {
-            return CnctException("$filename is a type that cannot be sent ($type).", code = CnctErrorCode.INVALID)
+            return CnctException("$filename is a type that cannot be sent ($type).", code = CnctErrorCode.UNSUPPORTED_TYPE)
         }
         if (size < 0) return CnctException("$filename has no size.", code = CnctErrorCode.INVALID)
         return null
