@@ -6,6 +6,9 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.graphics.vector.path
 import androidx.compose.ui.graphics.vector.rememberVectorPainter
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.semantics.getOrNull
+import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onRoot
@@ -62,6 +65,13 @@ class ChatScreenshotTest {
 
     private fun count(text: String): Int = compose.onAllNodes(hasText(text)).fetchSemanticsNodes().size
 
+    /** The tray's photo has reached the point the fixture holds it at — about 40%. */
+    private fun photoHeld(): Boolean = compose.onAllNodes(
+        SemanticsMatcher("upload at 40%") { node ->
+            node.config.getOrNull(SemanticsProperties.ProgressBarRangeInfo)?.current?.let { it >= 0.38f } == true
+        },
+    ).fetchSemanticsNodes().isNotEmpty()
+
     private fun fixture(language: CnctLanguage, theme: CnctChatTheme?, fresh: Boolean = false, content: @Composable () -> Unit = {}) {
         compose.mainClock.autoAdvance = false
         compose.setContent {
@@ -82,7 +92,7 @@ class ChatScreenshotTest {
         fixture(language, theme)
         val failed = if (language == CnctLanguage.AR) "هل يمكنني الدفع بالبطاقة؟" else "Can I pay by card?"
         val uploading = if (language == CnctLanguage.AR) "جارٍ الرفع…" else "Uploading…"
-        settle { exists(failed) && count(uploading) == 1 }
+        settle { exists(failed) && count(uploading) == 1 && photoHeld() }
     }
 
     private fun shoot(language: CnctLanguage, appearance: CnctAppearance) {
@@ -118,7 +128,7 @@ class ChatScreenshotTest {
         }
         val failed = if (language == CnctLanguage.AR) "هل يمكنني الدفع بالبطاقة؟" else "Can I pay by card?"
         val uploading = if (language == CnctLanguage.AR) "جارٍ الرفع…" else "Uploading…"
-        settle { exists(failed) && count(uploading) == 1 }
+        settle { exists(failed) && count(uploading) == 1 && photoHeld() }
         capture("chat-${language.name.lowercase()}-custom")
     }
 

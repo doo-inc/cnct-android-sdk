@@ -397,7 +397,7 @@ private fun Header(controller: ChatController, state: CnctChatState, onClose: ((
         ) {
             BrandMark(40.dp)
             Gap(12.dp)
-            Column(Modifier.weight(1f)) {
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 OneLine(theme.title, look.style(17.sp, weight = FontWeight.SemiBold, userText = true))
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     if (presence != null) {
