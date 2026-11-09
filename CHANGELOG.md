@@ -1,5 +1,37 @@
 # Changelog
 
+## Unreleased
+
+The rest of the visitor API, as CNCT's hosted chat page uses it (`docs/chat-ui/SPEC.md`, Part 1).
+
+- **The inbox** (`boot()`) carries `widget` — the business's brand (`color`, `appearance`, `avatarUrl`,
+  `language`, `showBranding`) and chat settings (`allowAttachments`, `allowEndConversation`, `start`,
+  `askForRating`) — plus `team` (first names and faces) and `availability` (in or out, when the team
+  is back, whether the assistant answers, how fast replies come). Missing sections read as the
+  hosted widget's defaults.
+- **The full message**: `sender` (`CnctChatSender`: a person's first name and face, or the
+  assistant), `flow` (`CnctChatFlow`: words, `buttons`/`list` choices, footer, media, the kind of
+  answer it `expects`), `suggestions`, `replyTo` (a quoted earlier message) and `attachments`.
+  `CnctChatState` gains `awaiting` (what a flow is waiting for), `suggestions`, `seen` and `isLive`.
+- **Files both ways.** `uploadAttachment(bytes | stream, filename, mimeType, onProgress)` sends one
+  file as `multipart/form-data` (part `file`) with real per-file progress, after checking it against
+  `CnctAttachmentRules` (10 files, 50 MB, the accepted types; HEIC/HEIF must be converted to JPEG). The
+  server's refusals keep its sentence and map to the usual codes (`409` is `conversation_closed`,
+  `422` is `invalid`); none clears the session. Uploads and downloads have no whole-call deadline.
+- `send(body, attachmentIds, replyId, clientKey)`: words, files or both, and the flow choice a visitor
+  tapped (`choose(choice)` does it for you). Over the socket and over HTTP alike. `retry` resends the
+  same files and choice under the same `clientKey`.
+- **Signed-in users**: `identify(CnctChatIdentity(userId, userHash, …))` with the current token, so an
+  anonymous chat moves across; the answered token replaces the stored one. A refusal leaves the
+  anonymous session as it was. `CnctChatIdentity` never prints its hash.
+- `conversations()` and `conversation(id)`; `read()` (once per team reply); `rate(score, comment)`;
+  `updateProfile(displayName, phone)`.
+- Socket frames `chat.message.updated` (replaced in place, `CnctChatEvent.MessageUpdated`) and
+  `chat.read` (`seenAt`, `CnctChatEvent.Read`). `chat.conversation.updated` also takes the flat
+  payload the hosted widget reads (`status`, `withPerson`, `assignee`) and patches rather than resets.
+  When a conversation closes, the client asks the server whether it can be rated.
+- The session start and resume send the device's IANA `timezone`.
+
 ## Unreleased — 0.1.0
 
 - The foundation, matching the Flutter and web SDKs at 0.2.0: `Cnct`, `CnctConfig` (production

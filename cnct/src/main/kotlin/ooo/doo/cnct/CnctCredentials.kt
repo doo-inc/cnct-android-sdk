@@ -135,3 +135,39 @@ public class CnctApiKey(key: String) : CnctCredentials() {
         public const val PRODUCTION_PREFIX: String = "kaer_sk_live_"
     }
 }
+
+/**
+ * One of your app's signed-in users, for [CnctChatClient.identify].
+ *
+ * [userHash] is `HMAC-SHA256(userId, the inbox's identity secret)` in lowercase hex, **computed on
+ * your own server** and sent to the app with the user's session. The secret never goes in an app or
+ * a page — anybody holding it can sign in as any of your users — and this class never sees it.
+ *
+ * Not a data class, and [toString] prints neither the hash nor the details, so an identity that ends
+ * up in a log is not a list of your customers.
+ */
+public class CnctChatIdentity(
+    /** Your own id for the user. Stable: the same person is the same id on every device. */
+    public val userId: String,
+    /** The signature your server computed over [userId]. */
+    public val userHash: String,
+    public val name: String? = null,
+    public val email: String? = null,
+    public val phone: String? = null,
+) {
+    init {
+        if (userId.isBlank() || userHash.isBlank()) {
+            throw CnctException("A signed-in identity needs both userId and userHash.", code = CnctErrorCode.INVALID)
+        }
+    }
+
+    internal fun toJson(): kotlinx.serialization.json.JsonObject = kotlinx.serialization.json.buildJsonObject {
+        put("userId", kotlinx.serialization.json.JsonPrimitive(userId))
+        put("userHash", kotlinx.serialization.json.JsonPrimitive(userHash))
+        name?.trim()?.takeIf { it.isNotEmpty() }?.let { put("name", kotlinx.serialization.json.JsonPrimitive(it)) }
+        email?.trim()?.takeIf { it.isNotEmpty() }?.let { put("email", kotlinx.serialization.json.JsonPrimitive(it)) }
+        phone?.trim()?.takeIf { it.isNotEmpty() }?.let { put("phone", kotlinx.serialization.json.JsonPrimitive(it)) }
+    }
+
+    override fun toString(): String = "CnctChatIdentity(userId:${CnctCredentials.tail(userId)}, userHash:****)"
+}

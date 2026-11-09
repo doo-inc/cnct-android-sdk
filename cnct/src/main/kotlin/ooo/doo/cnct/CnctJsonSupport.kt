@@ -1,12 +1,14 @@
 package ooo.doo.cnct
 
 import kotlinx.serialization.DeserializationStrategy
+import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.builtins.serializer
 import kotlinx.serialization.descriptors.PrimitiveKind
 import kotlinx.serialization.descriptors.PrimitiveSerialDescriptor
 import kotlinx.serialization.descriptors.SerialDescriptor
+import kotlinx.serialization.descriptors.nullable
 import kotlinx.serialization.encoding.Decoder
 import kotlinx.serialization.encoding.Encoder
 import kotlinx.serialization.json.Json
@@ -169,4 +171,28 @@ internal object InstantOrNowSerializer : KSerializer<Instant> {
     }
 
     override fun serialize(encoder: Encoder, value: Instant): Unit = encoder.encodeString(value.toString())
+}
+
+/**
+ * A timestamp that may honestly be absent — when a conversation closed, when the team is back. Null,
+ * missing and unreadable all read as null: unlike a message's own stamp, inventing "now" here would
+ * say something false ("closed just now").
+ */
+internal object InstantOrNullSerializer : KSerializer<Instant?> {
+    override val descriptor: SerialDescriptor =
+        PrimitiveSerialDescriptor("ooo.doo.cnct.InstantOrNull", PrimitiveKind.STRING).nullable
+
+    override fun deserialize(decoder: Decoder): Instant? {
+        val raw = if (decoder is JsonDecoder) {
+            (decoder.decodeJsonElement() as? JsonPrimitive)?.takeUnless { it is JsonNull }?.contentOrNull
+        } else {
+            decoder.decodeString()
+        }
+        return parseInstant(raw)
+    }
+
+    @OptIn(ExperimentalSerializationApi::class)
+    override fun serialize(encoder: Encoder, value: Instant?) {
+        if (value == null) encoder.encodeNull() else encoder.encodeString(value.toString())
+    }
 }

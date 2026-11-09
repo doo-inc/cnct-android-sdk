@@ -21,11 +21,20 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
+import kotlinx.serialization.json.putJsonArray
 import okhttp3.HttpUrl
+import okhttp3.MediaType.Companion.toMediaTypeOrNull
+import okhttp3.MultipartBody
+import okhttp3.RequestBody
+import okhttp3.RequestBody.Companion.toRequestBody
+import java.io.InputStream
+import java.time.Instant
+import java.util.TimeZone
 import java.util.concurrent.ConcurrentHashMap
 import kotlin.coroutines.ContinuationInterceptor
 import kotlin.math.min
@@ -161,6 +170,15 @@ public class CnctChatClient(
     private var socketSendSupported = false
     private var closedByUs = false
 
+    /** clientKey → what was asked to be sent, so a retry sends exactly that again. */
+    private val outgoing = HashMap<String, Outgoing>()
+
+    /** Files this client uploaded, by id, so a bubble can show them before the server echoes them. */
+    private val uploaded = HashMap<String, CnctChatAttachment>()
+
+    /** Conversation id → the newest team reply already reported as read. Each is reported once. */
+    private val reported = HashMap<String, String>()
+
     /** The open socket, mirrored where a cancelled scope's last word can still reach it. */
     @Volatile private var liveSocket: CnctSocket? = null
 
@@ -197,14 +215,23 @@ public class CnctChatClient(
      * chatted last week is still attached to the contact record the business has for them.
      *
      * Pass [phone] whenever you know it. A visitor is anonymous until they volunteer a number: if your
-     * app has already signed this person in, passing the number you hold is the difference between a
-     * thread that joins their history and one that starts a second record for them.
+     * app has already signed this person in, pass a signed identity to [identify] first — or, short of
+     * that, the number you hold, which is the difference between a thread that joins their history
+     * and one that starts a second record for them.
+     *
+     * [timezone] is the device's IANA zone, so the team sees the customer's own clock and the
+     * platform can say "back tomorrow at 9:00" in it. Pass null to send none.
      */
-    public suspend fun start(displayName: String? = null, phone: String? = null): Unit = withContext(confined) {
+    public suspend fun start(
+        displayName: String? = null,
+        phone: String? = null,
+        timezone: String? = deviceTimeZone(),
+    ): Unit = withContext(confined) {
         loadToken()
         val body = buildJsonObject {
             displayName?.trim()?.takeIf { it.isNotEmpty() }?.let { put("displayName", it) }
             phone?.trim()?.takeIf { it.isNotEmpty() }?.let { put("phone", it) }
+            timezone?.takeIf { it.isNotEmpty() }?.let { put("timezone", it) }
         }
         val json = transport.post(
             "/api/chat/public/${CnctConfig.pathSegment(publicKey)}/session",
@@ -223,28 +250,219 @@ public class CnctChatClient(
      * business closed the conversation, and neither is something an app can act on beyond going back
      * to its pre-chat screen.
      */
-    public suspend fun resume(): Boolean = withContext(confined) { resumeHere() }
+    public suspend fun resume(timezone: String? = deviceTimeZone()): Boolean = withContext(confined) {
+        resumeHere(timezone)
+    }
+
+    // ── Who the visitor is ───────────────────────────────────────────────────────────────────────
+
+    /**
+     * Sign this visitor in as one of your app's users, so their conversations follow them between
+     * devices and the team sees who they are talking to.
+     *
+     * [CnctChatIdentity.userHash] is `HMAC-SHA256(userId, the inbox's identity secret)`, **computed on
+     * your own server** and handed to the app with the user's session. The secret itself never goes in
+     * an app: anybody holding it can sign in as any of your users.
+     *
+     * The current session token travels with the call, so a conversation started anonymously before
+     * sign-in moves across rather than being stranded. The token answered replaces the stored one;
+     * if a conversation was open, it is reloaded as the signed-in visitor's.
+     *
+     * A refusal leaves the anonymous session exactly as it was — `409` ([CnctErrorCode.CONFLICT])
+     * when identity is not set up for this inbox, `401` when the hash did not verify. Neither clears
+     * the stored token: the visitor can still chat, just not as your user. Log it for yourself; a
+     * customer has nothing to do about it.
+     */
+    public suspend fun identify(identity: CnctChatIdentity): CnctChatVisitor = withContext(confined) {
+        loadToken()
+        val before = token
+        val wasOpen = before != null && (connection != null || state.value.conversation != null)
+        val json = asObject(
+            transport.post(
+                "/api/chat/public/${CnctConfig.pathSegment(publicKey)}/identify",
+                body = identity.toJson(),
+                headers = tokenHeader(),
+            ),
+        )
+        val fresh = json.string("token")?.takeIf { it.isNotEmpty() }
+            ?: throw CnctException("The server signed the visitor in without a token.", code = CnctErrorCode.BAD_RESPONSE)
+        val visitor = (json["visitor"] as? JsonObject)?.let { decodeModel(CnctChatVisitor.serializer(), it) }
+            ?: CnctChatVisitor(identified = true)
+        keepToken(fresh)
+        if (fresh == before) {
+            patch { it.copy(visitor = visitor) }
+            return@withContext visitor
+        }
+        // A different token is a different session: whatever the socket and the transcript said
+        // belonged to the old one. Reload rather than carry it over.
+        teardownSocket()
+        reported.clear()
+        patch { CnctChatState(inbox = it.inbox, visitor = visitor) }
+        if (wasOpen) resumeHere(deviceTimeZone())
+        visitor
+    }
+
+    /**
+     * Save the name the visitor gives — asked for in the thread when they typed first — and, where
+     * the inbox wants one, their phone number. Answers the visitor as the platform now knows them.
+     */
+    public suspend fun updateProfile(displayName: String, phone: String? = null): CnctChatVisitor = withContext(confined) {
+        requireSession()
+        val name = displayName.trim()
+        if (name.isEmpty()) throw CnctException("A name cannot be empty.", code = CnctErrorCode.EMPTY)
+        val json = asObject(
+            transport.post(
+                "/api/chat/public/profile",
+                body = buildJsonObject {
+                    put("displayName", name)
+                    phone?.trim()?.takeIf { it.isNotEmpty() }?.let { put("phone", it) }
+                },
+                headers = tokenHeader(),
+            ),
+        )
+        val visitor = (json["visitor"] as? JsonObject)?.let { decodeModel(CnctChatVisitor.serializer(), it) }
+            ?: CnctChatVisitor(displayName = name)
+        patch { it.copy(visitor = visitor) }
+        visitor
+    }
+
+    // ── The visitor's conversations ──────────────────────────────────────────────────────────────
+
+    /**
+     * Every conversation this visitor has had, newest first — up to fifty, each with the last thing
+     * said in it as [CnctChatConversation.preview]. A signed-in visitor's include the ones they had on
+     * other devices.
+     */
+    public suspend fun conversations(): List<CnctChatConversation> = withContext(confined) {
+        requireSession()
+        val json = asObject(sessionCall { transport.get("/api/chat/public/conversations", headers = tokenHeader()) })
+        (json["visitor"] as? JsonObject)?.let { visitor ->
+            patch { it.copy(visitor = decodeModel(CnctChatVisitor.serializer(), visitor)) }
+        }
+        json.objects("conversations").map { decodeModel(CnctChatConversation.serializer(), it) }
+    }
+
+    /**
+     * One of this visitor's conversations, with everything said in it — an old one included, so past
+     * chats can be read back (and their files fetched). When it is the conversation on screen, [state]
+     * is refreshed from it too.
+     */
+    public suspend fun conversation(id: String): CnctChatTranscript = withContext(confined) {
+        requireSession()
+        val json = asObject(
+            sessionCall {
+                transport.get("/api/chat/public/conversations/${CnctConfig.pathSegment(id)}", headers = tokenHeader())
+            },
+        )
+        (json["visitor"] as? JsonObject)?.let { visitor ->
+            patch { it.copy(visitor = decodeModel(CnctChatVisitor.serializer(), visitor)) }
+        }
+        val conversation = (json["conversation"] as? JsonObject)?.let { decodeModel(CnctChatConversation.serializer(), it) }
+            ?: throw CnctException("The server answered without the conversation.", code = CnctErrorCode.BAD_RESPONSE)
+        val messages = json.objects("messages").map { decodeModel(CnctChatMessage.serializer(), it) }
+        if (conversation.id.isNotEmpty() && conversation.id == state.value.conversation?.id) {
+            patch { it.copy(conversation = conversation, messages = keepUnsent(messages, it.messages)) }
+        }
+        CnctChatTranscript(conversation, messages)
+    }
+
+    /**
+     * Tell the team their reply has been read — the ticks they see in the console.
+     *
+     * **Call it when a reply is on screen and the app is in the foreground**, as often as you like: it
+     * reports the newest team reply in the current conversation once, and does nothing until a newer
+     * one arrives. Answers true when it reported something. A report that fails is forgotten, so the
+     * next call tries again.
+     */
+    public suspend fun read(): Boolean = withContext(confined) {
+        loadToken()
+        if (token == null) return@withContext false
+        val current = state.value
+        val id = current.conversation?.id?.takeIf { it.isNotEmpty() } ?: return@withContext false
+        val reply = current.messages.lastOrNull {
+            (it.speaker == CnctSpeaker.OPERATOR || it.speaker == CnctSpeaker.AI) && it.id.isNotEmpty() && !it.pending
+        } ?: return@withContext false
+        if (reported[id] == reply.id) return@withContext false
+        reported[id] = reply.id
+        try {
+            transport.post("/api/chat/public/conversations/${CnctConfig.pathSegment(id)}/read", headers = tokenHeader())
+            true
+        } catch (error: Throwable) {
+            if (reported[id] == reply.id) reported.remove(id)
+            throw error
+        }
+    }
+
+    /**
+     * Say how it went, on a closed conversation: a [score] from 1 (terrible) to 5 (great), and
+     * optionally a [comment]. Sending again with a comment adds it to the same rating rather than
+     * making a second one.
+     *
+     * Defaults to the conversation in [state]. Answers the conversation as the server now has it;
+     * `409` ([CnctErrorCode.CONFLICT]) once it can no longer be rated.
+     */
+    public suspend fun rate(score: Int, comment: String? = null, conversationId: String? = null): CnctChatConversation =
+        withContext(confined) {
+            requireSession()
+            if (score !in 1..5) throw CnctException("A rating is from 1 to 5.", code = CnctErrorCode.INVALID)
+            val id = conversationId ?: state.value.conversation?.id?.takeIf { it.isNotEmpty() }
+                ?: throw CnctException("There is no conversation to rate.", code = CnctErrorCode.NOT_FOUND)
+            val json = asObject(
+                transport.post(
+                    "/api/chat/public/conversations/${CnctConfig.pathSegment(id)}/rating",
+                    body = buildJsonObject {
+                        put("score", score)
+                        if (comment != null) put("comment", comment)
+                    },
+                    headers = tokenHeader(),
+                ),
+            )
+            val patchJson = json["conversation"] as? JsonObject ?: JsonObject(emptyMap())
+            val current = state.value.conversation
+            val rated = if (current != null && current.id == id) mergeConversation(current, patchJson) else {
+                mergeConversation(null, JsonObject(mapOf("id" to JsonPrimitive(id)) + patchJson))
+            }
+            patch { if (it.conversation?.id == id) it.copy(conversation = rated) else it }
+            rated
+        }
 
     // ── Saying something ─────────────────────────────────────────────────────────────────────────
 
     /**
-     * Say something. Answers once the server has it.
+     * Say something — words, files, or both. Answers once the server has it.
+     *
+     * [attachmentIds] are files already sent up with [uploadAttachment], up to ten. [replyId] is the
+     * `id` of the flow choice the visitor tapped; send the choice's title as [body] — or call
+     * [choose], which does both.
      *
      * The optimistic bubble goes into [state] immediately and is replaced in place when the real row
      * arrives — matched on `clientKey`, which is also the frame id and also the server's idempotency
-     * key, so the three can never disagree about which message this is.
+     * key, so the three can never disagree about which message this is. It carries the files this
+     * client uploaded, so a photo is on screen the moment it is sent.
      *
      * On failure the bubble stays, marked [CnctChatMessage.failed], and the exception is thrown. Do
      * not clear it: the words somebody typed vanishing is worse than a retry button. Cancelling the
      * call leaves it marked the same way — whether it arrived is then the server's to say, and a
      * retry cannot double-post.
      */
-    public suspend fun send(body: String, clientKey: String? = null): CnctChatMessage = withContext(confined) {
+    public suspend fun send(
+        body: String = "",
+        attachmentIds: List<String> = emptyList(),
+        replyId: String? = null,
+        clientKey: String? = null,
+    ): CnctChatMessage = withContext(confined) {
         loadToken()
         if (token == null) throw CnctException("Start a conversation first.", code = CnctErrorCode.NO_SESSION)
         val text = body.trim()
-        if (text.isEmpty()) throw CnctException("Nothing to send.", code = CnctErrorCode.EMPTY)
+        val files = attachmentIds.filter { it.isNotEmpty() }.distinct()
+        // Words, files, or both — never neither. The server refuses an empty body with no files.
+        if (text.isEmpty() && files.isEmpty()) throw CnctException("Nothing to send.", code = CnctErrorCode.EMPTY)
+        if (files.size > CnctAttachmentRules.MAX_FILES) {
+            throw CnctException("Up to ${CnctAttachmentRules.MAX_FILES} files at a time.", code = CnctErrorCode.INVALID)
+        }
         val key = clientKey ?: uid()
+        val sending = Outgoing(text, files, replyId?.takeIf { it.isNotEmpty() })
+        outgoing[key] = sending
 
         patch { current ->
             val existing = current.messages.indexOfFirst { it.clientKey == key }
@@ -253,21 +471,19 @@ public class CnctChatClient(
                 messages[existing] = messages[existing].copy(pending = true, failed = false)
                 current.copy(messages = messages)
             } else {
-                current.copy(messages = current.messages + CnctChatMessage.optimistic(clientKey = key, body = text))
+                val shown = files.map { uploaded[it] ?: CnctChatAttachment(id = it) }
+                current.copy(messages = current.messages + CnctChatMessage.optimistic(key, text, shown))
             }
         }
 
         try {
-            if (socketSendSupported && connection != null) return@withContext sendOverSocket(key, text)
+            if (socketSendSupported && connection != null) return@withContext sendOverSocket(key, sending)
             // The fallback, and a real path rather than a formality: it runs against a server that
             // predates socket sends, and whenever the socket happens to be between connections. Same
             // endpoint, same idempotency key.
             val json = transport.post(
                 "/api/chat/public/messages",
-                body = buildJsonObject {
-                    put("body", text)
-                    put("clientKey", key)
-                },
+                body = sending.toJson(key),
                 headers = tokenHeader(),
             )
             val message = decodeModel(CnctChatMessage.serializer(), asObject(json))
@@ -275,13 +491,13 @@ public class CnctChatClient(
             message
         } catch (error: CnctException) {
             markFailed(key)
-            fail(
-                if (error.status == 409) {
-                    CnctException(error.message, code = CnctErrorCode.CONVERSATION_CLOSED, status = error.status)
-                } else {
-                    error
-                },
-            )
+            if (error.status == 409) {
+                fail(CnctException(error.message, code = CnctErrorCode.CONVERSATION_CLOSED, status = error.status))
+                // It ended while they were typing. Say so now, rather than on the next thing they try.
+                closedUnderneath()
+            } else {
+                fail(error)
+            }
             throw error
         } catch (cancelled: CancellationException) {
             awaiting.remove(key)
@@ -291,12 +507,25 @@ public class CnctChatClient(
         }
     }
 
-    /** Re-send a message that failed. The same `clientKey`, so the server cannot write it twice. */
+    /**
+     * Re-send a message that failed — the same words, the same files, the same choice. The same
+     * `clientKey`, so the server cannot write it twice.
+     */
     public suspend fun retry(clientKey: String): CnctChatMessage {
-        val message = state.value.messages.firstOrNull { it.clientKey == clientKey }
-            ?: throw CnctException("No message with that key.", code = CnctErrorCode.NOT_FOUND)
-        return send(message.body, clientKey = clientKey)
+        val again = withContext(confined) {
+            outgoing[clientKey] ?: state.value.messages.firstOrNull { it.clientKey == clientKey }?.let { message ->
+                Outgoing(message.body, message.attachments.map { it.id }, null)
+            }
+        } ?: throw CnctException("No message with that key.", code = CnctErrorCode.NOT_FOUND)
+        return send(again.body, again.attachmentIds, again.replyId, clientKey = clientKey)
     }
+
+    /**
+     * Answer a flow's question by tapping one of its [CnctChatFlow.choices]: sent as the visitor's
+     * words — the title they tapped — with the choice's id as `replyId`, so the flow follows the
+     * button exactly rather than reading the title as typing.
+     */
+    public suspend fun choose(choice: CnctFlowChoice): CnctChatMessage = send(choice.title, replyId = choice.id)
 
     /**
      * Tell the other side somebody is typing. Throttled to one frame every three seconds here, and
@@ -317,12 +546,96 @@ public class CnctChatClient(
         loadToken()
         if (token == null) return@withContext
         transport.post("/api/chat/public/close", headers = tokenHeader())
-        closedByUs = true
-        patch { it.copy(status = CnctChatStatus.ENDED) }
-        teardownSocket()
+        closedUnderneath()
     }
 
     // ── Files ────────────────────────────────────────────────────────────────────────────────────
+
+    /**
+     * Send one file up, ready to go with a message: pass the answer's `id` to [send] in
+     * `attachmentIds`. Each file goes up on its own, so each has its own [onProgress] — a fraction
+     * from 0 to 1, reported from OkHttp's thread as the bytes leave.
+     *
+     * Checked before a byte is sent, with [CnctAttachmentRules]: over 50 MB is
+     * [CnctErrorCode.TOO_LARGE], a type the platform does not keep is [CnctErrorCode.INVALID] — HEIC
+     * included, which is converted to JPEG rather than refused (`cnct-ui` does it for you). This
+     * artifact is plain Kotlin, so it takes bytes and a MIME type rather than an Android `Uri`; see
+     * the other overload for a stream.
+     *
+     * The server's refusals arrive with its own sentence for a person in the message: `403` the inbox
+     * takes no files, `409` the conversation has ended ([CnctErrorCode.CONVERSATION_CLOSED]), `413` too
+     * big, `422` the wrong type ([CnctErrorCode.INVALID]), `503` this deployment keeps no files. None of
+     * them clears the session.
+     */
+    public suspend fun uploadAttachment(
+        content: ByteArray,
+        filename: String,
+        mimeType: String,
+        onProgress: ((Float) -> Unit)? = null,
+    ): CnctChatAttachment {
+        val type = CnctAttachmentRules.normalise(mimeType, filename)
+        return upload(filename, type, content.size.toLong(), content.toRequestBody(type.toMediaTypeOrNull()), onProgress)
+    }
+
+    /**
+     * Send one file up from a stream — for a file too large to hold in memory. [open] is called each
+     * time the bytes are written (OkHttp may write a body more than once on a retried connection), and
+     * [size] must be its exact length in bytes.
+     */
+    public suspend fun uploadAttachment(
+        size: Long,
+        filename: String,
+        mimeType: String,
+        onProgress: ((Float) -> Unit)? = null,
+        open: () -> InputStream,
+    ): CnctChatAttachment {
+        val type = CnctAttachmentRules.normalise(mimeType, filename)
+        return upload(filename, type, size, StreamRequestBody.of(type, size, open), onProgress)
+    }
+
+    private suspend fun upload(
+        filename: String,
+        type: String,
+        size: Long,
+        part: RequestBody,
+        onProgress: ((Float) -> Unit)?,
+    ): CnctChatAttachment = withContext(confined) {
+        requireSession()
+        val name = filename.trim().ifEmpty { "file" }
+        CnctAttachmentRules.check(name, size, type)?.let { throw it }
+        val body = MultipartBody.Builder()
+            .setType(MultipartBody.FORM)
+            .addFormDataPart("file", name, onProgress?.let { CountingRequestBody(part, it) } ?: part)
+            .build()
+        val json = try {
+            transport.upload("/api/chat/public/attachments", body, headers = tokenHeader())
+        } catch (error: CnctException) {
+            val refused = uploadRefusal(error)
+            if (refused.code == CnctErrorCode.CONVERSATION_CLOSED) closedUnderneath()
+            throw refused
+        }
+        val attachment = (asObject(json)["attachment"] as? JsonObject)
+            ?.let { decodeModel(CnctChatAttachment.serializer(), it) }
+            ?.takeIf { it.id.isNotEmpty() }
+            ?: throw CnctException("The server kept the file without saying which it was.", code = CnctErrorCode.BAD_RESPONSE)
+        uploaded[attachment.id] = attachment
+        attachment
+    }
+
+    /**
+     * The usual codes for an upload's refusals, where the server did not name its own. The sentence
+     * is the server's, for a person, and is kept.
+     */
+    private fun uploadRefusal(error: CnctException): CnctException {
+        val named = (error.details as? JsonObject)?.string("code") != null
+        val code = when {
+            named -> error.code
+            error.status == 409 -> CnctErrorCode.CONVERSATION_CLOSED
+            error.status == 422 -> CnctErrorCode.INVALID
+            else -> error.code
+        }
+        return if (code == error.code) error else CnctException(error.message, code, error.status, error.details, error)
+    }
 
     /**
      * The bytes of a file an operator sent. Scoped to this visitor's own conversation by the server;
@@ -373,11 +686,13 @@ public class CnctChatClient(
 
     // ── Internals ────────────────────────────────────────────────────────────────────────────────
 
-    private suspend fun resumeHere(): Boolean {
+    private suspend fun resumeHere(timezone: String?): Boolean {
         loadToken()
         if (token == null) return false
         return try {
-            val data = asObject(transport.get("/api/chat/public/session", headers = tokenHeader()))
+            val data = asObject(
+                transport.get("/api/chat/public/session", query = mapOf("timezone" to timezone), headers = tokenHeader()),
+            )
             adoptSession(data)
             if (state.value.conversation?.status == CnctConversationStatus.CLOSED) {
                 patch { it.copy(status = CnctChatStatus.ENDED) }
@@ -453,7 +768,7 @@ public class CnctChatClient(
                     // way to know how much. Refetching is the only answer that cannot be subtly wrong.
                     inside.launch {
                         try {
-                            resumeHere()
+                            resumeHere(deviceTimeZone())
                         } catch (error: CnctException) {
                             log(CnctLogLevel.WARNING, "Could not reload the transcript after reconnecting", error)
                         }
@@ -504,6 +819,34 @@ public class CnctChatClient(
                         emit(CnctChatEvent.MessageReceived(message))
                     }
                 }
+                "chat.message.updated" -> {
+                    // Edited, deleted, or a file finished storing: the same message, changed. Replaced in
+                    // place by id; one this client never had is not news.
+                    val payload = (frame["payload"] as? JsonObject)?.get("message") as? JsonObject
+                    if (payload != null) {
+                        val message = decodeModel(CnctChatMessage.serializer(), payload)
+                        var replaced = false
+                        patch { current ->
+                            val at = current.messages.indexOfFirst { it.id == message.id && message.id.isNotEmpty() }
+                            if (at < 0) {
+                                current
+                            } else {
+                                replaced = true
+                                current.copy(messages = current.messages.toMutableList().also { it[at] = message })
+                            }
+                        }
+                        if (replaced) emit(CnctChatEvent.MessageUpdated(message))
+                    }
+                }
+                "chat.read" -> {
+                    // Somebody on the team read the conversation up to [at]: "Seen" under the visitor's
+                    // last words, when they were said before then.
+                    val at = parseInstant((frame["payload"] as? JsonObject)?.string("at"))
+                    if (at != null) {
+                        patch { current -> current.conversation?.let { current.copy(conversation = it.copy(seenAt = at)) } ?: current }
+                        emit(CnctChatEvent.Read(at))
+                    }
+                }
                 "chat.typing" -> {
                     patch { it.copy(theyAreTyping = true) }
                     typingClearJob?.cancel()
@@ -514,18 +857,21 @@ public class CnctChatClient(
                     emit(CnctChatEvent.TypingReceived)
                 }
                 "chat.conversation.updated" -> {
-                    val payload = (frame["payload"] as? JsonObject)?.get("conversation") as? JsonObject
-                    if (payload != null) {
-                        val conversation = decodeModel(CnctChatConversation.serializer(), payload)
+                    // Who is on it changed — a person took over, or handed back. Sent either as the whole
+                    // conversation or as just the fields that changed; either way a patch over what is
+                    // known, so a field the frame leaves out is not reset to its default.
+                    val payload = frame["payload"] as? JsonObject
+                    val changes = (payload?.get("conversation") as? JsonObject)
+                        ?: payload?.filterKeys { it in CONVERSATION_FIELDS }?.let(::JsonObject)?.takeIf { it.isNotEmpty() }
+                    if (changes != null) {
+                        val conversation = mergeConversation(state.value.conversation, changes)
                         patch { it.copy(conversation = conversation) }
                         emit(CnctChatEvent.ConversationUpdated(conversation))
                     }
                 }
                 "chat.closed" -> {
-                    closedByUs = true
-                    patch { it.copy(status = CnctChatStatus.ENDED) }
+                    closedUnderneath()
                     emit(CnctChatEvent.Closed)
-                    teardownSocket()
                 }
                 // An unknown frame is a newer server talking, not an error. Ignored on purpose.
                 else -> Unit
@@ -616,6 +962,65 @@ public class CnctChatClient(
         }
     }
 
+    /**
+     * The conversation ended — the visitor pressed End, an operator closed it, the inbox's timer did,
+     * or a send found it closed. The thread stays as it is and the socket goes; then the server is
+     * asked how it ended, because whether it can be rated is the server's to say.
+     */
+    private fun closedUnderneath() {
+        closedByUs = true
+        val now = Instant.now()
+        patch { current ->
+            current.copy(
+                status = CnctChatStatus.ENDED,
+                theyAreTyping = false,
+                conversation = current.conversation?.let {
+                    it.copy(status = CnctConversationStatus.CLOSED, closedAt = it.closedAt ?: now)
+                },
+            )
+        }
+        teardownSocket()
+        val id = state.value.conversation?.id?.takeIf { it.isNotEmpty() } ?: return
+        inside.launch {
+            try {
+                val rows = asObject(transport.get("/api/chat/public/conversations", headers = tokenHeader()))
+                val row = rows.objects("conversations").firstOrNull { it.string("id") == id } ?: return@launch
+                patch { current ->
+                    val conversation = current.conversation
+                    if (conversation?.id == id) current.copy(conversation = mergeConversation(conversation, JsonObject(row - "preview"))) else current
+                }
+            } catch (error: CnctException) {
+                // The rating card waits for the next load; the thread is already right.
+                log(CnctLogLevel.WARNING, "Could not learn how the conversation ended", error)
+            }
+        }
+    }
+
+    /** Fields of what is known about the conversation, overlaid with those the server just sent. */
+    private fun mergeConversation(current: CnctChatConversation?, changes: JsonObject): CnctChatConversation {
+        val base = current?.let { CnctJson.encodeToJsonElement(CnctChatConversation.serializer(), it) as? JsonObject }
+        return decodeModel(CnctChatConversation.serializer(), JsonObject((base ?: JsonObject(emptyMap())) + changes))
+    }
+
+    /**
+     * A read made with the session token. An unauthenticated answer means the token is dead: it is
+     * forgotten, as on [resume], so the app can start the visitor again, and the failure is thrown.
+     */
+    private suspend fun sessionCall(call: suspend () -> JsonElement): JsonElement = try {
+        call()
+    } catch (error: CnctException) {
+        if (error.isUnauthenticated) {
+            forgetSession()
+            emit(CnctChatEvent.Unauthenticated)
+        }
+        throw error
+    }
+
+    private suspend fun requireSession() {
+        loadToken()
+        if (token == null) throw CnctException("Start a conversation first.", code = CnctErrorCode.NO_SESSION)
+    }
+
     private fun closeQuietly(socket: CnctSocket) {
         try {
             socket.close(NORMAL_CLOSURE, "Client closed")
@@ -624,7 +1029,7 @@ public class CnctChatClient(
         }
     }
 
-    private suspend fun sendOverSocket(key: String, text: String): CnctChatMessage {
+    private suspend fun sendOverSocket(key: String, sending: Outgoing): CnctChatMessage {
         // A second send of a key already in flight waits for the same answer rather than orphaning
         // the first: the server will only ever write one row for it.
         awaiting[key]?.let { return it.await() }
@@ -640,14 +1045,8 @@ public class CnctChatClient(
                 CnctException("That message has not been acknowledged yet.", code = CnctErrorCode.TIMEOUT),
             )
         }
-        say(
-            buildJsonObject {
-                put("type", "send")
-                put("id", key)
-                put("body", text)
-                put("clientKey", key)
-            },
-        )
+        // The socket's `send` frame takes the same body as the HTTP endpoint, plus the frame id.
+        say(JsonObject(mapOf("type" to JsonPrimitive("send"), "id" to JsonPrimitive(key)) + sending.toJson(key)))
         return waiting.await()
     }
 
@@ -698,20 +1097,22 @@ public class CnctChatClient(
         }
     }
 
+    private suspend fun keepToken(fresh: String) {
+        token = fresh
+        tokenLoaded = true
+        // A store that fails to keep the token is not a reason to fail the call it happened in:
+        // the visitor can chat now, and will be a stranger next launch.
+        try {
+            store.write(storageKey, fresh)
+        } catch (error: Exception) {
+            if (error is CancellationException) throw error
+            log(CnctLogLevel.WARNING, "Could not keep the chat session token", error)
+        }
+    }
+
     private suspend fun adoptSession(data: JsonObject) {
         val fresh = data.string("token")
-        if (!fresh.isNullOrEmpty()) {
-            token = fresh
-            tokenLoaded = true
-            // A store that fails to keep the token is not a reason to fail the call it happened in:
-            // the visitor can chat now, and will be a stranger next launch.
-            try {
-                store.write(storageKey, fresh)
-            } catch (error: Exception) {
-                if (error is CancellationException) throw error
-                log(CnctLogLevel.WARNING, "Could not keep the chat session token", error)
-            }
-        }
+        if (!fresh.isNullOrEmpty()) keepToken(fresh)
         val visitor = (data["visitor"] as? JsonObject)?.let { decodeModel(CnctChatVisitor.serializer(), it) }
         val conversation = (data["conversation"] as? JsonObject)?.let { decodeModel(CnctChatConversation.serializer(), it) }
         val transcript = (data["messages"] as? JsonArray)
@@ -741,6 +1142,9 @@ public class CnctChatClient(
     private suspend fun forgetSession() {
         token = null
         tokenLoaded = true
+        outgoing.clear()
+        uploaded.clear()
+        reported.clear()
         try {
             store.clear(storageKey)
         } catch (error: Exception) {
@@ -801,6 +1205,17 @@ public class CnctChatClient(
         return "k$stamp$noise"
     }
 
+    /** What a send asked for, kept so a retry asks for exactly the same again. */
+    private class Outgoing(val body: String, val attachmentIds: List<String>, val replyId: String?) {
+        /** The body `POST /messages` and the socket's `send` frame both take. */
+        fun toJson(clientKey: String): JsonObject = buildJsonObject {
+            put("body", body)
+            put("clientKey", clientKey)
+            if (attachmentIds.isNotEmpty()) putJsonArray("attachmentIds") { attachmentIds.forEach { add(JsonPrimitive(it)) } }
+            replyId?.let { put("replyId", it) }
+        }
+    }
+
     /** One connection attempt. Anything it reports after it has been replaced is ignored. */
     private inner class Connection : CnctSocketListener {
         var socket: CnctSocket? = null
@@ -824,6 +1239,16 @@ public class CnctChatClient(
         val KEEP_ALIVE = 25.seconds
         val TYPING_THROTTLE = 3.seconds
         val TYPING_CLEARS_AFTER = 4.seconds
+
+        /** What a flat `chat.conversation.updated` payload may change. */
+        val CONVERSATION_FIELDS = setOf("status", "withPerson", "assignee", "closedAt", "seenAt", "rating", "ratable")
+
+        /** The device's IANA time zone — `Asia/Bahrain` — or null where the platform will not say. */
+        fun deviceTimeZone(): String? = try {
+            TimeZone.getDefault().id?.takeIf { it.isNotEmpty() }
+        } catch (_: Exception) {
+            null
+        }
 
         /** One lane on the dispatcher the caller chose — or on the default one, where none can be had. */
         fun confine(interceptor: ContinuationInterceptor?): CoroutineDispatcher {
