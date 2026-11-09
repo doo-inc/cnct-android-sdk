@@ -1,0 +1,2005 @@
+/* ─────────────────────────────────────────────────────────────────────────
+   The public chat page — a small messenger.
+
+   Its own stylesheet, sharing nothing with the console. That is the whole
+   point: this is the one surface a customer sees, and a restyle of an
+   operator's sidebar must not be able to reflow it. It is also the surface
+   most likely to be on a phone, on a bad connection, in bright sunlight.
+
+   ── The look ────────────────────────────────────────────────────────────
+
+   Warm paper rather than white, and a serif for the greeting — both there to
+   say "somebody is writing to you" on the screens where nothing has happened
+   yet. What the widget *does* is benchmarked on Intercom's Messenger; what it
+   looks like is deliberately not: no coloured header band and no tab bar.
+   The brand colour is spent sparingly — on the send button, on the visitor's
+   own bubbles as a tint, and on the ring round the face they choose at the
+   end. The faces are the product's own set (Fluent Emoji), the same drawing
+   on every device, never whatever the visitor's phone draws for an emoji.
+
+   ── What the client controls ────────────────────────────────────────────
+
+   Two custom properties, `--brand` and `--brand-ink`, are written onto
+   `:root` by `chat.js` from the inbox's saved configuration. Everything
+   tinted reads them, so the whole page follows one value and there is no
+   second place for a colour to be hardcoded. Appearance is
+   `data-appearance` on the same element: absent or `auto` follows the
+   visitor's own system, and `light` / `dark` override it.
+   ───────────────────────────────────────────────────────────────────────── */
+
+/* Inter, self-hosted. On a stranger's phone a font named and hoped for is a
+   font that is not there. */
+@font-face {
+  font-family: 'Inter';
+  src: url('/fonts/inter-var.woff2') format('woff2');
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+/* Tajawal for Arabic, the console's own: Inter has no Arabic, and the fallback on a phone that
+   has none either is boxes. Only the two weights the page uses; the browser fetches them only
+   when a page is in Arabic. */
+@font-face {
+  font-family: 'Tajawal';
+  src: url('/fonts/tajawal-400.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+0600-06FF, U+0750-077F, U+08A0-08FF, U+FB50-FDFF, U+FE70-FEFF;
+}
+@font-face {
+  font-family: 'Tajawal';
+  src: url('/fonts/tajawal-700.woff2') format('woff2');
+  font-weight: 500 900;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+0600-06FF, U+0750-077F, U+08A0-08FF, U+FB50-FDFF, U+FE70-FEFF;
+}
+
+:root {
+  /* Warm neutrals, not greys. A paper ground under a serif greeting is the
+     difference between "a form" and "a note". */
+  --ground: #faf8f3;
+  --surface: #fffefb;
+  --raised: #f4efe4;
+  --ink: #221f1a;
+  --ink-muted: #6d6659;
+  --line: #e7e0d2;
+  --line-soft: #efe9dd;
+  --them-bg: #f3eee4;
+  /* A tint of whatever colour the client picked — resolved at use, so it follows
+     the `--brand` chat.js writes rather than needing a second value per theme. */
+  --you-bg: color-mix(in srgb, var(--brand) 14%, var(--surface));
+  --you-ink: #221f1a;
+
+  /* Overwritten by chat.js from the inbox's configuration. These two are the
+     fallback for the moment before boot answers — and for a boot that fails. */
+  --brand: #b52d93;
+  --brand-ink: #ffffff;
+
+  /* The assistants' colours, the console's own swatches — a mascot drawn in
+     the widget is the same colour the operator chose for it. */
+  --mascot-coral: #ff470f;
+  --mascot-amber: #bd7e00;
+  --mascot-lime: #4a9e00;
+  --mascot-mint: #009e4f;
+  --mascot-teal: #00999e;
+  --mascot-sky: #008cf0;
+  --mascot-cobalt: #5c72ff;
+  --mascot-pink: #ff2491;
+
+  --s1: 4px;
+  --s2: 8px;
+  --s3: 12px;
+  --s4: 16px;
+  --s5: 20px;
+  --s6: 28px;
+  --r-sm: 10px;
+  --r-md: 14px;
+  --r-lg: 20px;
+  --r-full: 999px;
+
+  --serif: ui-serif, 'New York', Georgia, 'Times New Roman', serif;
+  --sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+
+  --shadow: 0 20px 56px rgb(60 48 30 / 0.14), 0 2px 8px rgb(60 48 30 / 0.06);
+  --tile-shadow: 0 1px 2px rgb(60 48 30 / 0.05), 0 6px 18px rgb(60 48 30 / 0.07);
+  --ease: cubic-bezier(0.16, 1, 0.3, 1);
+  color-scheme: light;
+}
+
+/* Arabic: Tajawal first, for the greeting as well — there is no Arabic serif a phone can be relied
+   on to have. Latin inside Arabic text (a name, an order number) still falls through to Inter. */
+:root[lang='ar'] {
+  --sans: 'Tajawal', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --serif: 'Tajawal', 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+}
+/* Tracking pulls joined Arabic letters apart; it is a Latin adjustment, so Arabic has none. */
+:root[lang='ar'] body * {
+  letter-spacing: normal;
+}
+
+/* `auto` follows the visitor's own machine. Guarded with
+   `:not([data-appearance='light'])` so a client who has chosen light keeps
+   it on a dark phone. The block is repeated for an explicit `dark` below,
+   because a media query cannot be switched on by an attribute. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-appearance='light']) {
+    --ground: #1b1814;
+    --surface: #211e18;
+    --raised: #2a2620;
+    --ink: #f1ece2;
+    --ink-muted: #a1988a;
+    --line: #342f27;
+    --line-soft: #2b271f;
+    --them-bg: #2d2922;
+    --you-bg: color-mix(in srgb, var(--brand) 30%, var(--surface));
+    --you-ink: #f7f3ec;
+    --mascot-coral: #ff6e42;
+    --mascot-amber: #ffb624;
+    --mascot-lime: #85ff1a;
+    --mascot-mint: #1aff8c;
+    --mascot-teal: #1af7ff;
+    --mascot-sky: #38acff;
+    --mascot-cobalt: #7588ff;
+    --mascot-pink: #ff47a3;
+    --shadow: 0 20px 56px rgb(0 0 0 / 0.55), 0 2px 8px rgb(0 0 0 / 0.35);
+    --tile-shadow: 0 1px 2px rgb(0 0 0 / 0.3), 0 6px 18px rgb(0 0 0 / 0.25);
+    color-scheme: dark;
+  }
+}
+
+:root[data-appearance='dark'] {
+  --ground: #1b1814;
+  --surface: #211e18;
+  --raised: #2a2620;
+  --ink: #f1ece2;
+  --ink-muted: #a1988a;
+  --line: #342f27;
+  --line-soft: #2b271f;
+  --them-bg: #2d2922;
+  --you-bg: color-mix(in srgb, var(--brand) 30%, var(--surface));
+  --you-ink: #f7f3ec;
+  --mascot-coral: #ff6e42;
+  --mascot-amber: #ffb624;
+  --mascot-lime: #85ff1a;
+  --mascot-mint: #1aff8c;
+  --mascot-teal: #1af7ff;
+  --mascot-sky: #38acff;
+  --mascot-cobalt: #7588ff;
+  --mascot-pink: #ff47a3;
+  --shadow: 0 20px 56px rgb(0 0 0 / 0.55), 0 2px 8px rgb(0 0 0 / 0.35);
+  --tile-shadow: 0 1px 2px rgb(0 0 0 / 0.3), 0 6px 18px rgb(0 0 0 / 0.25);
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100dvh;
+  background: var(--ground);
+  color: var(--ink);
+  font: 15px/1.55 var(--sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+}
+
+.page {
+  /* dvh, not vh: on iOS the address bar eats the difference and the composer ends up off-screen. */
+  min-height: 100dvh;
+  display: grid;
+  place-items: center;
+  padding: var(--s4);
+}
+
+/* The frame every screen lives in. A fixed height rather than a growing card,
+   because a messenger scrolls inside itself: the header and the composer stay
+   where the thumb expects them and only the conversation moves. */
+.app {
+  position: relative;
+  width: min(420px, 100%);
+  height: min(720px, calc(100dvh - 32px));
+  display: flex;
+  flex-direction: column;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow);
+  overflow: hidden;
+}
+
+.screen {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  animation: enter 0.22s var(--ease);
+}
+.screen.center {
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  gap: var(--s3);
+  padding: var(--s6);
+}
+.screen.center h1 {
+  font: 400 24px/1.2 var(--serif);
+  letter-spacing: -0.01em;
+  margin: 0;
+}
+
+@keyframes enter {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+}
+
+/* ── Shared ─────────────────────────────────────────────────────────── */
+
+.muted {
+  color: var(--ink-muted);
+}
+.hidden {
+  display: none !important;
+}
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
+}
+
+svg {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.9;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.glyph {
+  display: grid;
+  place-items: center;
+  width: 46px;
+  height: 46px;
+  border-radius: var(--r-full);
+  background: color-mix(in srgb, var(--brand) 12%, transparent);
+  color: var(--brand);
+}
+.glyph svg {
+  width: 22px;
+  height: 22px;
+}
+
+.brandmark {
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  background: var(--brand);
+  color: var(--brand-ink);
+  display: grid;
+  place-items: center;
+  font: 600 17px/1 var(--sans);
+  overflow: hidden;
+  flex: none;
+}
+.brandmark img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.error {
+  margin: var(--s2) 0 0;
+  color: #b3261e;
+  font-size: 13px;
+}
+:root[data-appearance='dark'] .error {
+  color: #ff9d95;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-appearance='light']) .error {
+    color: #ff9d95;
+  }
+}
+
+.legal {
+  margin: var(--s3) 0 0;
+  font-size: 11.5px;
+  line-height: 1.5;
+}
+
+.brandline {
+  margin: var(--s2) 0 0;
+  text-align: center;
+  font-size: 11px;
+  letter-spacing: 0.01em;
+}
+.brandline b {
+  font-weight: 600;
+  color: color-mix(in srgb, var(--ink) 72%, transparent);
+}
+
+.chip {
+  display: inline-block;
+  padding: 1px 5px;
+  border-radius: 5px;
+  background: color-mix(in srgb, var(--brand) 13%, transparent);
+  color: var(--brand);
+  font: 700 9.5px/1.4 var(--sans);
+  letter-spacing: 0.04em;
+}
+
+.dot {
+  width: 8px;
+  height: 8px;
+  border-radius: var(--r-full);
+  background: var(--brand);
+  flex: none;
+}
+
+.chev {
+  width: 15px;
+  height: 15px;
+  color: var(--ink-muted);
+  flex: none;
+}
+:dir(rtl) .chev {
+  transform: scaleX(-1);
+}
+
+/* ── Buttons ────────────────────────────────────────────────────────── */
+
+.primary {
+  appearance: none;
+  border: 0;
+  border-radius: var(--r-full);
+  background: var(--brand);
+  color: var(--brand-ink);
+  font: 600 15px/1 var(--sans);
+  padding: 13px var(--s5);
+  cursor: pointer;
+  transition: filter 0.15s ease, transform 0.15s ease;
+}
+.primary:hover {
+  filter: brightness(1.07);
+}
+.primary:active {
+  transform: scale(0.985);
+}
+.primary:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+.primary.small {
+  font-size: 13px;
+  padding: 9px 14px;
+}
+.primary.with-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  max-width: 100%;
+  white-space: nowrap;
+}
+.primary.with-icon svg {
+  width: 16px;
+  height: 16px;
+  stroke-width: 2;
+}
+
+.ghost {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s1);
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--ink-muted);
+  border-radius: var(--r-full);
+  font: 500 12px/1 var(--sans);
+  padding: 7px 11px;
+  cursor: pointer;
+  flex: none;
+  transition: color 0.15s ease, border-color 0.15s ease;
+}
+.ghost:hover {
+  color: var(--ink);
+  border-color: color-mix(in srgb, var(--ink) 25%, transparent);
+}
+
+.link-quiet {
+  border: 0;
+  background: transparent;
+  color: var(--ink-muted);
+  font-size: 12px;
+  padding: 4px 6px;
+  cursor: pointer;
+}
+.link-quiet:hover {
+  color: var(--ink);
+  text-decoration: underline;
+}
+
+.back {
+  border: 0;
+  background: transparent;
+  color: var(--ink-muted);
+  cursor: pointer;
+  width: 34px;
+  height: 34px;
+  border-radius: var(--r-sm);
+  display: grid;
+  place-items: center;
+  flex: none;
+}
+.back:hover {
+  color: var(--ink);
+  background: var(--raised);
+}
+.back svg {
+  width: 18px;
+  height: 18px;
+  stroke-width: 2;
+}
+:dir(rtl) .back svg {
+  transform: scaleX(-1);
+}
+
+/* ── Faces ──────────────────────────────────────────────────────────── */
+
+/* A person's avatar, an assistant's mascot, or the business's own mark —
+   one shape, three sizes, so every place a face appears lines up with every
+   other. */
+.face {
+  display: inline-grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: var(--r-full);
+  overflow: hidden;
+  flex: none;
+  background: color-mix(in srgb, var(--brand) 14%, var(--surface));
+  color: var(--brand);
+  font: 600 14px/1 var(--sans);
+}
+.face.sm {
+  width: 26px;
+  height: 26px;
+  font-size: 11px;
+}
+.face.xs {
+  width: 18px;
+  height: 18px;
+  font-size: 9px;
+}
+.face.lg {
+  width: 38px;
+  height: 38px;
+  font-size: 15px;
+}
+.face svg {
+  width: 100%;
+  height: 100%;
+  stroke: none;
+  fill: currentColor;
+}
+.face.ai {
+  background: var(--raised);
+}
+.face.ai svg.mascot {
+  width: 74%;
+  height: 74%;
+}
+.face.brand {
+  background: var(--brand);
+  color: var(--brand-ink);
+  border-radius: 30%;
+}
+.face.brand img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.stack {
+  display: inline-flex;
+  align-items: center;
+}
+.stack .face {
+  box-shadow: 0 0 0 2px var(--surface);
+}
+.stack .face + .face {
+  margin-inline-start: -9px;
+}
+
+/* ── Home ───────────────────────────────────────────────────────────── */
+
+.home {
+  overflow: hidden;
+  background: var(--ground);
+}
+.home-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: var(--s5) 22px var(--s4);
+}
+.home-top {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 34px;
+}
+.home-top .brandmark {
+  width: 32px;
+  height: 32px;
+  border-radius: 10px;
+  font-size: 14px;
+}
+.home-business {
+  font-size: 14px;
+  font-weight: 600;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.home h1 {
+  font: 400 38px/1.05 var(--serif);
+  letter-spacing: -0.02em;
+  margin: 36px 0 var(--s2);
+}
+.lede {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.5;
+  max-width: 36ch;
+}
+
+.team-line {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: var(--s4) 0 0;
+  font-size: 13px;
+  color: var(--ink-muted);
+}
+.team-line .stack .face {
+  box-shadow: 0 0 0 2px var(--ground);
+}
+
+/* In or out, and what to expect. A dot, not a badge: it is a fact, not an alert. */
+.status-line {
+  display: flex;
+  /* The dot sits on the first line when the sentence wraps, not halfway down two. */
+  align-items: flex-start;
+  gap: 8px;
+  margin: var(--s3) 0 0;
+  font-size: 13px;
+  color: var(--ink-muted);
+}
+.status-line:empty {
+  display: none;
+}
+.presence {
+  width: 8px;
+  height: 8px;
+  margin-top: 6px;
+  border-radius: var(--r-full);
+  flex: none;
+  background: #1f9d55;
+  box-shadow: 0 0 0 3px color-mix(in srgb, #1f9d55 18%, transparent);
+}
+.presence.away {
+  background: var(--ink-muted);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--ink-muted) 16%, transparent);
+}
+/* Out of hours with the assistant on: somebody answers, just not a person — the brand's colour. */
+.presence.away.assistant {
+  background: var(--brand);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand) 18%, transparent);
+}
+
+/* Shaped like the composer it opens: it reads as "type here", not as a card to click. */
+.write {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s3);
+  width: 100%;
+  margin-top: 22px;
+  padding-block: 7px;
+  padding-inline: 18px 7px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-full);
+  background: var(--surface);
+  color: var(--ink-muted);
+  font-size: 15px;
+  text-align: start;
+  cursor: text;
+  box-shadow: 0 1px 2px rgb(60 48 30 / 0.04), 0 8px 24px rgb(60 48 30 / 0.06);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.write:hover {
+  border-color: color-mix(in srgb, var(--brand) 45%, var(--line));
+}
+.write:focus-visible {
+  outline: none;
+  border-color: var(--brand);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand) 16%, transparent);
+}
+.write-send {
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  border-radius: var(--r-full);
+  background: var(--brand);
+  color: var(--brand-ink);
+  flex: none;
+}
+.write-send svg {
+  width: 16px;
+  height: 16px;
+  stroke-width: 2;
+}
+:dir(rtl) .write-send svg {
+  transform: scaleX(-1);
+}
+
+/* The questions people ask, as chips under the box — tap one and it is sent. */
+.openers {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s2);
+  margin-top: var(--s3);
+}
+.opener {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+  border: 1px solid var(--line);
+  border-radius: var(--r-full);
+  background: transparent;
+  padding-block: 7px;
+  padding-inline: 13px 10px;
+  font: 500 13px/1.3 var(--sans);
+  text-align: start;
+  cursor: pointer;
+  transition: border-color 0.15s ease, color 0.15s ease, background 0.15s ease;
+}
+.opener span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.opener .chev {
+  width: 13px;
+  height: 13px;
+}
+.opener:hover {
+  border-color: color-mix(in srgb, var(--brand) 45%, var(--line));
+  color: var(--brand);
+  background: color-mix(in srgb, var(--brand) 5%, transparent);
+}
+.opener:hover .chev {
+  color: var(--brand);
+}
+
+.recent {
+  margin-top: 30px;
+}
+.section-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--s3);
+  margin-bottom: 2px;
+}
+.section-head h2 {
+  margin: 0;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--ink-muted);
+}
+.link {
+  border: 0;
+  background: transparent;
+  padding: 2px 0;
+  color: var(--brand);
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.link:hover {
+  text-decoration: underline;
+}
+.recent-list .list-row {
+  padding-inline: 0;
+  background: transparent;
+}
+.recent-list .list-row:last-child {
+  border-bottom: 0;
+}
+.home .brandline {
+  flex: none;
+  margin: 0;
+  padding: var(--s2) 0 var(--s3);
+}
+
+/* ── Rows (Home's recent tile and the Messages list) ───────────────── */
+
+.convo {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--s3);
+}
+.convo-main {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.convo-text {
+  font-size: 14px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.convo.unread .convo-text {
+  font-weight: 600;
+}
+.convo-meta {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  color: var(--ink-muted);
+  white-space: nowrap;
+  overflow: hidden;
+}
+.convo .rated {
+  width: 20px;
+  height: 20px;
+  stroke: none;
+}
+.convo .live {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--brand);
+  padding: 2px 7px;
+  border-radius: var(--r-full);
+  background: color-mix(in srgb, var(--brand) 11%, transparent);
+}
+.convo.closed .face {
+  opacity: 0.85;
+}
+
+/* ── The full list ──────────────────────────────────────────────────── */
+
+.bar {
+  position: relative;
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 54px;
+  padding: 0 var(--s3);
+  border-bottom: 1px solid var(--line-soft);
+}
+.bar h2 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+}
+.bar .back {
+  position: absolute;
+  inset-inline-start: var(--s2);
+}
+
+.list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+.list-row {
+  display: block;
+  width: 100%;
+  border: 0;
+  border-bottom: 1px solid var(--line-soft);
+  background: transparent;
+  text-align: start;
+  padding: 13px var(--s4);
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+.list-row:hover {
+  background: color-mix(in srgb, var(--raised) 60%, transparent);
+}
+.recent-list .list-row:hover .convo-text {
+  color: var(--brand);
+}
+
+.empty {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--s2);
+  padding: var(--s6);
+  text-align: center;
+}
+.empty p {
+  margin: 0;
+  font-size: 13.5px;
+}
+
+.list-foot {
+  flex: none;
+  display: grid;
+  justify-items: center;
+  gap: var(--s1);
+  padding: var(--s3) var(--s4) var(--s3);
+}
+.list-foot .primary {
+  box-shadow: 0 6px 18px color-mix(in srgb, var(--brand) 30%, transparent);
+}
+
+/* ── The form before a first message ───────────────────────────────── */
+
+.intro .bar {
+  border-bottom: 0;
+  justify-content: flex-start;
+}
+.intro .bar .back {
+  position: static;
+}
+.intro-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0 var(--s6) var(--s5);
+}
+.intro-body h1 {
+  font: 400 27px/1.15 var(--serif);
+  letter-spacing: -0.01em;
+  margin: var(--s4) 0 var(--s1);
+}
+.intro-body > .muted {
+  margin: 0 0 var(--s5);
+  font-size: 14.5px;
+}
+.intro-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s4);
+}
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s1);
+}
+.field > span {
+  font-size: 12.5px;
+  font-weight: 550;
+  color: var(--ink-muted);
+}
+.field em {
+  font-style: normal;
+  opacity: 0.7;
+  font-weight: 400;
+}
+.field input,
+.card-in-thread input,
+.card-in-thread textarea {
+  width: 100%;
+  border: 1px solid var(--line);
+  background: var(--ground);
+  color: var(--ink);
+  border-radius: var(--r-md);
+  padding: 12px var(--s4);
+  font: 15px/1.4 var(--sans);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.card-in-thread input,
+.card-in-thread textarea {
+  font-size: 14px;
+  padding: 10px 13px;
+  border-radius: 12px;
+  resize: none;
+}
+.field input::placeholder,
+.card-in-thread input::placeholder,
+.card-in-thread textarea::placeholder {
+  color: var(--ink-muted);
+  opacity: 0.8;
+}
+.field input:focus,
+.card-in-thread input:focus,
+.card-in-thread textarea:focus {
+  outline: none;
+  border-color: var(--brand);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand) 18%, transparent);
+}
+.field small {
+  font-size: 11.5px;
+  line-height: 1.45;
+}
+
+/* ── The conversation ───────────────────────────────────────────────── */
+
+.chat-head {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 62px;
+  padding: var(--s2) var(--s3) var(--s2) var(--s2);
+  border-bottom: 1px solid var(--line-soft);
+}
+.faces {
+  display: flex;
+  align-items: center;
+}
+.who {
+  flex: 1;
+  min-width: 0;
+}
+.who strong {
+  display: block;
+  font-size: 15px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.who .muted {
+  display: block;
+  font-size: 12px;
+  line-height: 1.35;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.thread {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: var(--s4) var(--s3) var(--s2);
+  overscroll-behavior: contain;
+  background: var(--surface);
+}
+.thread-messages {
+  display: flex;
+  flex-direction: column;
+}
+.thread-cards {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s3);
+  padding-top: var(--s3);
+}
+.thread-cards:empty {
+  display: none;
+}
+
+.stamp {
+  align-self: center;
+  font-size: 11.5px;
+  font-weight: 550;
+  color: var(--ink-muted);
+  margin: var(--s3) 0 var(--s1);
+}
+
+/* One run of the same speaker: the bubbles, then a byline under them. */
+.group {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  max-width: 84%;
+  margin-top: 12px;
+}
+/* Only what just arrived rises in; a redraw of what was already there does not move. */
+.group.fresh,
+.msg.fresh {
+  animation: rise 0.24s var(--ease);
+}
+.group.you {
+  align-self: flex-end;
+  align-items: flex-end;
+}
+.group.them {
+  align-self: flex-start;
+  align-items: flex-start;
+}
+.byline {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin: 3px 4px 0;
+  font-size: 11.5px;
+  color: var(--ink-muted);
+}
+.byline .who-name {
+  font-weight: 600;
+  color: color-mix(in srgb, var(--ink) 80%, transparent);
+}
+/* "Seen", under the visitor's last words once somebody on the team has read them. */
+.byline .seen {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+.byline .seen svg {
+  width: 13px;
+  height: 13px;
+  stroke-width: 2;
+  color: var(--brand);
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+
+.msg {
+  padding: 9px 14px;
+  border-radius: 16px;
+  font-size: 14.5px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+  max-width: 100%;
+}
+.group.them .msg {
+  background: var(--them-bg);
+  color: var(--ink);
+  border-start-start-radius: 5px;
+  border-end-start-radius: 5px;
+}
+.group.them .msg.head {
+  border-start-start-radius: 16px;
+}
+/* The visitor's own words, on a tint of the brand — the colour is theirs to wear, quietly. */
+.group.you .msg {
+  background: var(--you-bg);
+  color: var(--you-ink);
+  border-start-end-radius: 5px;
+  border-end-end-radius: 5px;
+}
+.group.you .msg.head {
+  border-start-end-radius: 16px;
+}
+/* A link in either colour of bubble: the bubble's own ink, underlined. */
+.msg .web-link {
+  color: inherit;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.msg.pending {
+  opacity: 0.65;
+}
+.msg.failed {
+  opacity: 0.85;
+  box-shadow: inset 0 0 0 1.5px #d93025;
+}
+.retry {
+  display: block;
+  margin-top: var(--s1);
+  border: 0;
+  background: transparent;
+  padding: 0;
+  color: inherit;
+  font: 600 12px/1.4 var(--sans);
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.attachment {
+  margin-top: var(--s2);
+}
+.attachment img {
+  max-width: 100%;
+  max-height: 260px;
+  border-radius: var(--r-sm);
+  display: block;
+  background: var(--raised);
+}
+.attachment .file {
+  display: inline-block;
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  padding: var(--s2) var(--s3);
+  color: var(--ink);
+  font-size: 13px;
+  text-decoration: none;
+  background: var(--surface);
+  overflow-wrap: anywhere;
+}
+/* A bubble that is only a file: the file is the bubble, with no empty line of text above it. */
+.msg.only-files {
+  padding: 4px;
+}
+.msg.only-files .attachment:first-child {
+  margin-top: 0;
+}
+.msg.only-files .attachment .file {
+  margin: 4px 6px;
+  border: 0;
+  padding: 4px 6px;
+  background: transparent;
+}
+
+/* Replies the assistant offered, under its last message. The Home openers' chips, without the
+   chevron: tapping one sends it as the visitor's own words. */
+.suggestions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s2);
+  margin-top: var(--s2);
+}
+.suggestions .opener {
+  padding-inline: 13px;
+}
+
+/* A reply still being written. The cursor is the only difference from a finished one, which is the
+   point: when it lands, the finished bubble takes this one's place without the thread moving. */
+.msg.draft > div:last-child::after {
+  content: '';
+  display: inline-block;
+  width: 2px;
+  height: 1em;
+  margin-inline-start: 2px;
+  vertical-align: text-bottom;
+  background: currentColor;
+  opacity: 0.45;
+  animation: draft-caret 1s steps(2, start) infinite;
+}
+@keyframes draft-caret {
+  to {
+    visibility: hidden;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .msg.draft > div:last-child::after {
+    animation: none;
+  }
+}
+/* What the assistant is doing, in its own words ("Finding add-ons for your line…"). */
+.draft-status {
+  padding-inline: 4px;
+  margin-top: 4px;
+  font: italic 400 12.5px/1.4 var(--sans);
+  color: var(--ink-muted);
+}
+
+/* ── A flow's message ───────────────────────────────────────────────────
+   The picture a flow put above its words, and the small line under them. */
+/* A bubble with a picture is as wide as the picture wants, not as wide as its words. */
+.msg.has-media {
+  width: 300px;
+  max-width: 100%;
+}
+.flow-media {
+  margin: -4px -9px 8px;
+}
+/* The frame has its height before the picture arrives, so a photo loading does not push the
+   choices under it off the bottom of a thread that was pinned there. */
+.flow-media.framed {
+  position: relative;
+  aspect-ratio: 16 / 9;
+  border-radius: 12px;
+  overflow: hidden;
+  background: var(--raised);
+}
+.flow-media.framed img,
+.flow-media.framed video {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.flow-media .file {
+  display: inline-block;
+  margin: 4px 9px 0;
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  padding: var(--s2) var(--s3);
+  color: var(--ink);
+  font-size: 13px;
+  text-decoration: none;
+  background: var(--surface);
+  overflow-wrap: anywhere;
+}
+/* The message a reply quotes, above its words: a bar in the bubble's own ink, faint, and a line or
+   two of what was said. A button when it can take you to the original. */
+.quote-ref {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  width: 100%;
+  margin: 0 0 6px;
+  padding: 4px 8px;
+  border: 0;
+  border-inline-start: 3px solid currentColor;
+  border-radius: 6px;
+  background: color-mix(in srgb, currentColor 8%, transparent);
+  color: inherit;
+  font: inherit;
+  font-size: 13px;
+  line-height: 1.35;
+  text-align: start;
+}
+button.quote-ref {
+  cursor: pointer;
+}
+button.quote-ref:hover {
+  background: color-mix(in srgb, currentColor 13%, transparent);
+}
+button.quote-ref:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 2px;
+}
+.quote-who {
+  font-weight: 600;
+  font-size: 12px;
+}
+.quote-words {
+  opacity: 0.8;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+/* The original, found from a quote: washed once so the eye lands on it. */
+.msg.flash {
+  animation: quote-flash 1.2s ease-out;
+}
+@keyframes quote-flash {
+  0%,
+  30% {
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand, currentColor) 45%, transparent);
+  }
+  100% {
+    box-shadow: 0 0 0 3px transparent;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .msg.flash {
+    animation: none;
+  }
+}
+
+.msg-footer {
+  margin-top: 6px;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--ink-muted);
+}
+
+/* What a flow offers next, on the visitor's side of the thread: their reply, one tap away. The
+   brand is mixed towards the ink for the words, so a pale brand colour still reads in both themes. */
+.choices {
+  --choice-ink: color-mix(in srgb, var(--brand) 72%, var(--ink));
+  align-self: flex-end;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+  max-width: 88%;
+  margin-top: 10px;
+}
+.choice {
+  cursor: pointer;
+  font-family: var(--sans);
+  -webkit-tap-highlight-color: transparent;
+  transition: background 0.15s ease, border-color 0.15s ease, transform 0.1s ease;
+}
+.choice:active {
+  transform: scale(0.97);
+}
+.choice:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
+}
+.choices.fresh .choice {
+  animation: rise 0.28s var(--ease) both;
+  animation-delay: calc(var(--i) * 45ms + 120ms);
+}
+
+/* Short ones: pills, like the suggestions on Home. */
+.choices.pills .choice {
+  max-width: 100%;
+  border: 1px solid color-mix(in srgb, var(--brand) 42%, var(--line));
+  border-radius: var(--r-full);
+  background: var(--surface);
+  padding: 8px 15px;
+  color: var(--choice-ink);
+  font-size: 13.5px;
+  font-weight: 600;
+  line-height: 1.3;
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+.choices.pills .choice:hover {
+  border-color: color-mix(in srgb, var(--brand) 70%, var(--line));
+  background: color-mix(in srgb, var(--brand) 8%, var(--surface));
+}
+
+/* With descriptions: rows in a card, because a description needs the width. */
+.choices.rows {
+  flex-direction: column;
+  flex-wrap: nowrap;
+  align-items: stretch;
+  gap: 0;
+  width: min(88%, 340px);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  background: var(--surface);
+  overflow: hidden;
+  box-shadow: var(--tile-shadow);
+}
+.choices-label {
+  padding: 10px 14px 8px;
+  border-bottom: 1px solid var(--line-soft);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink-muted);
+}
+.choices.rows .choice {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  border: 0;
+  border-top: 1px solid var(--line-soft);
+  background: transparent;
+  padding: 11px 14px;
+  color: var(--ink);
+  text-align: start;
+}
+.choices.rows .choice:first-child,
+.choices.rows .choices-label + .choice {
+  border-top: 0;
+}
+.choices.rows .choice:hover {
+  background: color-mix(in srgb, var(--brand) 6%, var(--surface));
+}
+.choice-words {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.choices.rows .choice-title {
+  color: var(--choice-ink);
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.35;
+}
+.choice-description {
+  font-size: 12.5px;
+  line-height: 1.4;
+  color: var(--ink-muted);
+}
+.choices.rows .chev {
+  flex: none;
+  width: 14px;
+  height: 14px;
+  color: var(--ink-muted);
+  transition: transform 0.15s ease, color 0.15s ease;
+}
+.choices.rows .choice:hover .chev {
+  color: var(--choice-ink);
+}
+
+.typing {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  height: 36px;
+  padding: 0 14px;
+  border-radius: 16px;
+  background: var(--them-bg);
+}
+.typing i {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--ink-muted);
+  animation: blink 1.2s infinite ease-in-out;
+}
+.typing i:nth-child(2) {
+  animation-delay: 0.15s;
+}
+.typing i:nth-child(3) {
+  animation-delay: 0.3s;
+}
+@keyframes blink {
+  0%,
+  80%,
+  100% {
+    opacity: 0.3;
+    transform: translateY(0);
+  }
+  40% {
+    opacity: 1;
+    transform: translateY(-2px);
+  }
+}
+
+/* "This conversation has ended" — a rule across the thread, not a bubble:
+   nobody said it. */
+.ended {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  font-size: 12px;
+  color: var(--ink-muted);
+  margin-top: var(--s2);
+}
+.ended::before,
+.ended::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--line);
+}
+
+/* The cards in the thread: the name, and the faces. */
+.card-in-thread {
+  display: grid;
+  gap: 10px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  box-shadow: var(--tile-shadow);
+  padding: 16px;
+  margin: 0 var(--s1);
+}
+.card-in-thread.fresh {
+  animation: rise 0.28s var(--ease);
+}
+.card-in-thread strong {
+  font-size: 14.5px;
+  font-weight: 600;
+}
+.card-in-thread p {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.45;
+}
+.card-in-thread .primary.small {
+  justify-self: end;
+}
+.card-in-thread .error {
+  margin: 0;
+}
+.card-in-thread.rating {
+  text-align: center;
+  justify-items: center;
+}
+
+.face-row {
+  display: flex;
+  gap: 4px;
+  justify-content: center;
+  width: 100%;
+}
+/* Five across at any width: each face shrinks with the card rather than the fifth falling off it. */
+.rate {
+  display: grid;
+  place-items: center;
+  flex: 0 1 48px;
+  min-width: 0;
+  aspect-ratio: 1;
+  padding: 0;
+  border-radius: var(--r-full);
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--ink-muted);
+  cursor: pointer;
+  transition: transform 0.2s var(--ease), background 0.15s ease, opacity 0.15s ease,
+    filter 0.15s ease;
+}
+.rate-face {
+  width: 66%;
+  height: 66%;
+  stroke: none;
+}
+.rate:hover:not(:disabled) {
+  transform: translateY(-2px) scale(1.08);
+}
+.rate[aria-pressed='true'] {
+  background: color-mix(in srgb, var(--brand) 12%, transparent);
+  border-color: color-mix(in srgb, var(--brand) 40%, transparent);
+  transform: scale(1.06);
+}
+/* Once one is chosen the rest step back, so the answer is the face that still has its colour. */
+.face-row:has([aria-pressed='true']) .rate:not([aria-pressed='true']) {
+  opacity: 0.45;
+  filter: grayscale(0.85);
+}
+.rate:disabled {
+  cursor: default;
+}
+.rate-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--brand);
+  margin-top: -2px;
+}
+.rate-more {
+  display: grid;
+  gap: var(--s2);
+  width: 100%;
+  text-align: start;
+}
+.rate-actions {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: var(--s2);
+}
+.quote {
+  font-style: italic;
+  color: var(--ink-muted);
+  padding-inline-start: 10px;
+  border-inline-start: 2px solid color-mix(in srgb, var(--brand) 50%, transparent);
+  text-align: start;
+  justify-self: stretch;
+}
+
+.note-card {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  justify-content: center;
+  font-size: 12.5px;
+  color: var(--ink-muted);
+}
+.note-card .tick {
+  width: 15px;
+  height: 15px;
+  color: var(--brand);
+  stroke-width: 2.4;
+}
+
+/* "End this chat?", asked where the composer was. */
+.confirm {
+  flex: none;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s2);
+  padding: var(--s3) var(--s4);
+  border-top: 1px solid var(--line-soft);
+  background: var(--ground);
+  font-size: 13px;
+}
+.confirm span {
+  flex: 1 1 100%;
+}
+.confirm .ghost {
+  margin-inline-start: auto;
+}
+
+.closed-foot {
+  flex: none;
+  display: grid;
+  justify-items: center;
+  padding: var(--s3) var(--s4);
+  border-top: 1px solid var(--line-soft);
+}
+
+.composer {
+  flex: none;
+  padding: var(--s2) var(--s3) var(--s3);
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+}
+.field-row {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--s1);
+  background: var(--ground);
+  border: 1px solid var(--line);
+  border-radius: 24px;
+  padding-block: 6px;
+  padding-inline: var(--s4) 6px;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+/* With the paperclip at its start, the round button sits in the curve instead of the padding. */
+.field-row:has(#attachButton:not(.hidden)) {
+  padding-inline-start: 6px;
+}
+.field-row:focus-within {
+  border-color: var(--brand);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand) 16%, transparent);
+}
+.composer textarea {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  font: 14.5px/1.45 var(--sans);
+  resize: none;
+  outline: none;
+  padding: 7px 0;
+  max-height: 140px;
+}
+.composer textarea::placeholder {
+  color: var(--ink-muted);
+  opacity: 0.85;
+}
+
+.tool {
+  border: 0;
+  background: transparent;
+  color: var(--ink-muted);
+  cursor: pointer;
+  padding: 8px;
+  border-radius: var(--r-full);
+  display: grid;
+  place-items: center;
+  flex: none;
+  transition: color 0.15s ease, background 0.15s ease;
+}
+.tool:hover {
+  color: var(--ink);
+  background: var(--raised);
+}
+.tool svg {
+  width: 18px;
+  height: 18px;
+}
+
+.send {
+  flex: none;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  border-radius: var(--r-full);
+}
+.send svg {
+  width: 16px;
+  height: 16px;
+  stroke-width: 2;
+}
+:dir(rtl) .send svg {
+  transform: scaleX(-1);
+}
+
+/* Files on their way, as chips above the box: a thumbnail or a type, the name, a bar while it
+   goes up, and a way to take it back. */
+.uploads {
+  display: flex;
+  gap: var(--s2);
+  overflow-x: auto;
+  padding: 2px;
+  scrollbar-width: none;
+}
+.upload {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  flex: none;
+  max-width: 200px;
+  padding: 6px;
+  padding-inline-end: 30px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  background: var(--surface);
+  font-size: 12.5px;
+  overflow: hidden;
+}
+.upload .thumb {
+  width: 34px;
+  height: 34px;
+  border-radius: 7px;
+  flex: none;
+  object-fit: cover;
+  display: grid;
+  place-items: center;
+  background: var(--raised);
+  color: var(--ink-muted);
+  font: 700 9px/1 var(--sans);
+  text-transform: uppercase;
+}
+.upload .name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.upload .progress {
+  position: absolute;
+  inset-inline-start: 0;
+  bottom: 0;
+  height: 2px;
+  background: var(--brand);
+  transition: width 0.2s ease;
+}
+.upload.failed {
+  border-color: #d93025;
+  color: #d93025;
+}
+.upload .remove {
+  position: absolute;
+  top: 50%;
+  inset-inline-end: 4px;
+  transform: translateY(-50%);
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--r-full);
+  background: transparent;
+  color: var(--ink-muted);
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+}
+.upload .remove:hover {
+  background: var(--raised);
+  color: var(--ink);
+}
+.upload .remove svg {
+  width: 13px;
+  height: 13px;
+  stroke-width: 2;
+}
+
+/* A file dragged over the conversation: the whole screen says where it will go. */
+.chat {
+  position: relative;
+}
+.drop {
+  position: absolute;
+  inset: var(--s2);
+  z-index: 5;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: var(--s2);
+  border: 2px dashed color-mix(in srgb, var(--brand) 60%, var(--line));
+  border-radius: var(--r-lg);
+  background: color-mix(in srgb, var(--ground) 92%, transparent);
+  color: var(--ink);
+  font-weight: 600;
+  pointer-events: none;
+}
+.drop svg {
+  width: 26px;
+  height: 26px;
+  color: var(--brand);
+}
+
+.emoji-tray {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s1);
+  padding-top: var(--s1);
+}
+.emoji-search {
+  border: 1px solid var(--line);
+  background: var(--ground);
+  color: var(--ink);
+  font: 13.5px/1.4 var(--sans);
+  border-radius: var(--r-full);
+  padding: 6px var(--s3);
+  outline: none;
+  transition: border-color 0.15s ease;
+}
+.emoji-search:focus {
+  border-color: var(--brand);
+}
+.emoji-search::placeholder {
+  color: var(--ink-muted);
+  opacity: 0.85;
+}
+.emoji-tabs {
+  display: flex;
+  gap: 2px;
+  overflow-x: auto;
+}
+/* Grey until chosen, so the row reads as places to go rather than as emoji to send. */
+.emoji-tabs button {
+  border: 0;
+  background: transparent;
+  font-size: 15px;
+  line-height: 1;
+  padding: 5px;
+  border-radius: var(--r-sm);
+  cursor: pointer;
+  filter: grayscale(1);
+  opacity: 0.65;
+  transition: opacity 0.15s ease, filter 0.15s ease, background 0.15s ease;
+}
+.emoji-tabs button:hover,
+.emoji-tabs button[aria-selected='true'] {
+  filter: none;
+  opacity: 1;
+  background: var(--raised);
+}
+/* Short enough to leave the conversation in view above it. */
+.emoji-scroll {
+  max-height: 184px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+/* Laid out only when scrolled near: the visitor's own row and the smileys are what is seen first. */
+.emoji-section:not(:first-child) {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 240px;
+}
+.emoji-heading {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  margin: 0;
+  padding: var(--s2) 2px var(--s1);
+  background: var(--surface);
+  color: var(--ink-muted);
+  font: 600 10.5px/1 var(--sans);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.emoji-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(36px, 1fr));
+}
+.emoji-grid button {
+  border: 0;
+  background: transparent;
+  font-size: 20px;
+  line-height: 1;
+  padding: 6px;
+  border-radius: var(--r-sm);
+  cursor: pointer;
+}
+.emoji-grid button:hover,
+.emoji-grid button:focus-visible {
+  background: var(--raised);
+  outline: none;
+}
+.emoji-note {
+  margin: 0;
+  padding: var(--s4) var(--s2);
+  color: var(--ink-muted);
+  font-size: 13px;
+  text-align: center;
+}
+
+.chat .error {
+  padding: 0 var(--s4) var(--s2);
+  margin: 0;
+}
+.chat .brandline {
+  padding-bottom: var(--s3);
+  margin-top: 0;
+}
+
+/* ── Narrow screens ─────────────────────────────────────────────────── */
+
+@media (max-width: 620px) {
+  .page {
+    padding: 0;
+    place-items: stretch;
+  }
+  .app {
+    width: 100%;
+    height: 100dvh;
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+  }
+}
+
+/* ── Embedded in somebody's website ─────────────────────────────────── */
+
+.embed,
+.embed body {
+  height: 100%;
+  min-height: 0;
+  background: var(--surface);
+}
+.embed .page {
+  min-height: 0;
+  height: 100%;
+  padding: 0;
+  place-items: stretch;
+}
+.embed .app {
+  width: 100%;
+  height: 100%;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.embed-close {
+  display: none;
+}
+.embed .embed-close {
+  position: fixed;
+  top: 12px;
+  inset-inline-end: 12px;
+  z-index: 10;
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border: 0;
+  border-radius: var(--r-full);
+  background: color-mix(in srgb, var(--ground) 80%, transparent);
+  backdrop-filter: blur(6px);
+  color: var(--ink-muted);
+  cursor: pointer;
+  transition: color 0.15s ease, background 0.15s ease;
+}
+.embed .embed-close:hover {
+  color: var(--ink);
+  background: var(--raised);
+}
+.embed .embed-close:active {
+  transform: scale(0.94);
+}
+.embed .embed-close svg {
+  width: 15px;
+  height: 15px;
+  stroke-width: 2;
+}
+/* Room for the close button wherever a screen draws its own top edge. */
+.embed .chat-head,
+.embed .bar {
+  padding-inline-end: 50px;
+}
+.embed .home-top {
+  padding-inline-end: 38px;
+}
+/* The builder's preview has a close button that closes nothing. */
+.preview .embed-close {
+  pointer-events: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation: none !important;
+    transition: none !important;
+  }
+}

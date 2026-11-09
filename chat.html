@@ -1,0 +1,340 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <!-- A conversation with a business is nobody else's business. -->
+    <meta name="robots" content="noindex, nofollow" />
+    <meta name="referrer" content="no-referrer" />
+    <title>Chat</title>
+    <link
+      rel="icon"
+      href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><rect width='64' height='64' rx='14' fill='%23D43DA7'/><g transform='translate(-12.04,-10.49) scale(0.48)'><g transform='translate(6,50) scale(1.1)'><path d='M 35,20 A 15,15 0 0,0 35,50 Q 52,50 52,20 L 74,50 Q 74,20 91,20 A 15,15 0 0,0 91,50 Q 111,50 111,20 M 101,20 H 121' fill='none' stroke='white' stroke-width='9' stroke-linecap='round' stroke-linejoin='round'/></g></g></svg>"
+    />
+    <link rel="stylesheet" href="/chat-assets/chat.css" />
+  </head>
+  <body>
+    <!-- Off-screen rather than display:none. Chrome still resolves <symbol> references out of a
+         display:none subtree, but it does NOT resolve a paint server from one — the gradient mark
+         renders as nothing at all, silently, with the element still measuring its full box. -->
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      style="position: absolute; width: 0; height: 0; overflow: hidden"
+      aria-hidden="true"
+    >
+      <symbol id="c-send" viewBox="0 0 24 24">
+        <path
+          d="M3.714 3.048a.498.498 0 0 0-.683.627l2.843 7.627a2 2 0 0 1 0 1.396l-2.842 7.627a.498.498 0 0 0 .682.627l18-8.5a.5.5 0 0 0 0-.904z"
+        />
+        <path d="M6 12h16" />
+      </symbol>
+      <symbol id="c-message" viewBox="0 0 24 24">
+        <path
+          d="M2.992 16.342a2 2 0 0 1 .094 1.167l-1.065 3.29a1 1 0 0 0 1.236 1.168l3.413-.998a2 2 0 0 1 1.099.092 10 10 0 1 0-4.777-4.719"
+        />
+      </symbol>
+      <symbol id="c-x" viewBox="0 0 24 24">
+        <path d="M18 6 6 18" />
+        <path d="m6 6 12 12" />
+      </symbol>
+      <symbol id="c-chevron" viewBox="0 0 24 24">
+        <path d="m9 18 6-6-6-6" />
+      </symbol>
+      <symbol id="c-smile" viewBox="0 0 24 24">
+        <circle cx="12" cy="12" r="10" />
+        <path d="M8 14s1.5 2 4 2 4-2 4-2M9 9h.01M15 9h.01" />
+      </symbol>
+      <symbol id="c-back" viewBox="0 0 24 24">
+        <path d="m15 18-6-6 6-6" />
+      </symbol>
+      <symbol id="c-home" viewBox="0 0 24 24">
+        <path d="M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8" />
+        <path
+          d="M3 10a2 2 0 0 1 .709-1.528l7-5.999a2 2 0 0 1 2.582 0l7 5.999A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"
+        />
+      </symbol>
+      <symbol id="c-messages" viewBox="0 0 24 24">
+        <path d="M14 9a2 2 0 0 1-2 2H6l-4 4V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2z" />
+        <path d="M18 9h2a2 2 0 0 1 2 2v11l-4-4h-6a2 2 0 0 1-2-2v-1" />
+      </symbol>
+      <symbol id="c-check" viewBox="0 0 24 24">
+        <path d="M20 6 9 17l-5-5" />
+      </symbol>
+      <symbol id="c-check-check" viewBox="0 0 24 24">
+        <path d="M18 6 7 17l-5-5" />
+        <path d="m22 10-7.5 7.5L13 16" />
+      </symbol>
+      <symbol id="c-paperclip" viewBox="0 0 24 24">
+        <path
+          d="m16 6-8.414 8.586a2 2 0 0 0 2.829 2.829l8.414-8.586a4 4 0 1 0-5.657-5.657l-8.379 8.551a6 6 0 1 0 8.485 8.485l8.379-8.551"
+        />
+      </symbol>
+    </svg>
+
+    <!-- Embed only. There is no browser tab to close when this is a panel on somebody's site, and
+         the launcher outside cannot be reached from in here except by asking it. -->
+    <button id="embedClose" class="embed-close" type="button" aria-label="Close chat" data-i18n-label="closeChat">
+      <svg aria-hidden="true"><use href="#c-x" /></svg>
+    </button>
+
+    <main class="page">
+      <!--
+        One frame, with screens inside it — the shape of a messenger rather than of a form.
+
+        Home is where a visitor arrives: it holds the way to start writing and their last few
+        conversations, so most visits never need another screen. The full list and each
+        conversation are places they *go*, each with a back arrow to wherever they came from.
+      -->
+      <div class="app" id="app">
+        <!-- Boot: one frame, so a slow network never shows an empty screen that then rearranges. -->
+        <section id="boot" class="screen center">
+          <p class="muted" data-i18n="connecting">Connecting…</p>
+        </section>
+
+        <!-- The link is wrong, or the inbox is switched off. -->
+        <section id="unavailable" class="screen center hidden">
+          <div class="glyph" aria-hidden="true">
+            <svg><use href="#c-message" /></svg>
+          </div>
+          <h1 id="unavailableTitle" data-i18n="unavailableTitle">This chat is not available</h1>
+          <p class="muted" id="unavailableBody"></p>
+        </section>
+
+        <!--
+          Home. The business's mark and name, a greeting in its own words, the people who will
+          answer, somewhere to start writing, and the conversations they have already had.
+
+          Its job is to convert. A blank composer asks a stranger to compose the first message of a
+          conversation with a business, which is a surprising amount of work — a box that already
+          looks like the place to type, and three questions that already say what people ask about,
+          is most of that work done.
+        -->
+        <section id="home" class="screen home hidden">
+          <div class="home-scroll">
+            <header class="home-top">
+              <div class="brandmark" id="homeMark" aria-hidden="true"></div>
+              <span class="home-business" id="homeBusiness" dir="auto"></span>
+            </header>
+
+            <h1 id="homeHeading"></h1>
+            <p class="lede muted" id="homeTagline"></p>
+
+            <!-- Who will answer: a few faces and their first names, when the client shows them. -->
+            <p class="team-line hidden" id="homeTeam"></p>
+            <!-- In or out, and what to expect — measured, not promised. See `availabilityLine`. -->
+            <p class="status-line" id="homeStatus"></p>
+
+            <!-- Shaped like the composer it opens, so it reads as "type here" rather than "click". -->
+            <button type="button" class="write" id="homeStart">
+              <span id="homeStartLabel">Write to us…</span>
+              <span class="write-send" aria-hidden="true">
+                <svg><use href="#c-send" /></svg>
+              </span>
+            </button>
+
+            <!-- Filled from the inbox's own settings; stays empty and hidden when there are none. -->
+            <div class="openers hidden" id="homeQuestions"></div>
+
+            <section class="recent hidden" id="homeRecent" aria-labelledby="homeRecentTitle">
+              <div class="section-head">
+                <h2 id="homeRecentTitle" data-i18n="yourConversations">Your conversations</h2>
+                <button type="button" class="link" id="homeAll">See all</button>
+              </div>
+              <div class="recent-list" id="homeRecentList" role="list"></div>
+            </section>
+          </div>
+
+          <p class="brandline muted hidden" id="homeBranding"><span data-i18n="poweredBy">Powered by</span> <b>CNCT</b></p>
+        </section>
+
+        <!-- Every conversation this visitor has had here, newest first. -->
+        <section id="messages" class="screen messages hidden">
+          <header class="bar">
+            <button type="button" class="back" id="messagesBack" aria-label="Back" data-i18n-label="back">
+              <svg aria-hidden="true"><use href="#c-back" /></svg>
+            </button>
+            <h2 data-i18n="yourConversations">Your conversations</h2>
+          </header>
+          <div class="list" id="convoList" role="list"></div>
+          <div class="empty hidden" id="convoEmpty">
+            <div class="glyph" aria-hidden="true">
+              <svg><use href="#c-messages" /></svg>
+            </div>
+            <strong data-i18n="nothingYet">Nothing here yet</strong>
+            <p class="muted" data-i18n="keptHere">Conversations with the team will be kept here.</p>
+          </div>
+          <div class="list-foot">
+            <button type="button" class="primary with-icon" id="messagesStart">
+              <span>Start a new conversation</span>
+              <svg aria-hidden="true"><use href="#c-send" /></svg>
+            </button>
+            <button id="forgetMe" class="link-quiet hidden" type="button" data-i18n="forgetMe">
+              Forget me on this device
+            </button>
+          </div>
+        </section>
+
+        <!-- The form before a first message, on an inbox that asks for details first. Deliberately
+             short: every extra field is somebody deciding not to bother. -->
+        <section id="intro" class="screen intro hidden">
+          <header class="bar">
+            <button type="button" class="back" id="introBack" aria-label="Back" data-i18n-label="back">
+              <svg aria-hidden="true"><use href="#c-back" /></svg>
+            </button>
+          </header>
+          <div class="intro-body">
+            <div class="brandmark" id="introMark" aria-hidden="true"></div>
+            <h1 id="introBusiness"></h1>
+            <p class="muted" id="introGreeting"></p>
+            <form id="introForm" class="intro-form">
+              <label class="field">
+                <span data-i18n="yourName">Your name</span>
+                <input
+                  id="introName"
+                  name="name"
+                  autocomplete="given-name"
+                  maxlength="60"
+                  required
+                  placeholder="What should we call you?"
+                  data-i18n-placeholder="namePlaceholder"
+                />
+              </label>
+              <label class="field hidden" id="introPhoneField">
+                <span><span data-i18n="phoneNumber">Phone number</span> <em data-i18n="optional">optional</em></span>
+                <input
+                  id="introPhone"
+                  name="phone"
+                  type="tel"
+                  autocomplete="tel"
+                  maxlength="32"
+                  placeholder="+973 …"
+                />
+                <small class="muted" data-i18n="phoneHint"
+                  >So we can pick up where we left off if you have called us before.</small
+                >
+              </label>
+              <button type="submit" class="primary" id="introStart" data-i18n="startChatting">Start chatting</button>
+              <p class="legal muted" data-i18n="legal">
+                Your messages are kept so the team can answer you and look back at what was agreed.
+                Don't send card numbers or passwords.
+              </p>
+              <p class="error hidden" id="introError" role="alert"></p>
+            </form>
+          </div>
+        </section>
+
+        <!-- A conversation: the live one, a new one, or one from the past. -->
+        <section id="chat" class="screen chat hidden">
+          <header class="chat-head">
+            <button type="button" class="back" id="chatBack" aria-label="Back" data-i18n-label="back">
+              <svg aria-hidden="true"><use href="#c-back" /></svg>
+            </button>
+            <div class="faces" id="chatFaces" aria-hidden="true"></div>
+            <div class="who">
+              <strong id="chatTitle" dir="auto"></strong>
+              <span class="muted" id="chatState"></span>
+            </div>
+            <button id="chatEnd" class="ghost hidden" type="button" data-i18n="endChat">End chat</button>
+          </header>
+
+          <div
+            id="thread"
+            class="thread"
+            role="log"
+            aria-live="polite"
+            aria-label="Conversation"
+            data-i18n-label="conversation"
+          ></div>
+
+          <!-- "End this chat?" asked in place, over the composer it is about to remove. -->
+          <div class="confirm hidden" id="endConfirm" role="group" aria-label="End chat">
+            <span data-i18n="endConfirm">End this chat? You can always start a new one.</span>
+            <button type="button" class="ghost" id="endKeep" data-i18n="keepChatting">Keep chatting</button>
+            <button type="button" class="primary small" id="endYes" data-i18n="endChat">End chat</button>
+          </div>
+
+          <!-- A closed conversation cannot be written in; this is the way on. -->
+          <div class="closed-foot hidden" id="closedFoot">
+            <button type="button" class="primary with-icon" id="closedStart">
+              <span data-i18n="startNew">Start a new conversation</span>
+              <svg aria-hidden="true"><use href="#c-send" /></svg>
+            </button>
+          </div>
+
+          <form id="composer" class="composer">
+            <label class="sr-only" for="input" data-i18n="message">Message</label>
+            <!-- Files on their way, above the box they will be sent with. -->
+            <div class="uploads hidden" id="uploads" role="list"></div>
+            <div class="field-row">
+              <!-- Hidden when the client switched attachments off — see `applyWidget`. -->
+              <button
+                type="button"
+                class="tool hidden"
+                id="attachButton"
+                aria-label="Attach a file"
+                data-i18n-label="attach"
+              >
+                <svg aria-hidden="true"><use href="#c-paperclip" /></svg>
+              </button>
+              <input
+                type="file"
+                id="fileInput"
+                class="sr-only"
+                multiple
+                tabindex="-1"
+                accept="image/*,audio/*,video/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv"
+              />
+              <textarea
+                id="input"
+                rows="1"
+                maxlength="4000"
+                placeholder="Write a message…"
+                data-i18n-placeholder="writeMessage"
+                enterkeyhint="send"
+                dir="auto"
+              ></textarea>
+              <!-- Hidden unless the inbox offers it. A control that is not offered is not rendered,
+                   rather than rendered and disabled: a greyed-out button is a promise of a feature. -->
+              <button
+                type="button"
+                class="tool hidden"
+                id="emojiButton"
+                aria-label="Add an emoji"
+                data-i18n-label="addEmoji"
+                aria-expanded="false"
+                aria-controls="emojiTray"
+              >
+                <svg aria-hidden="true"><use href="#c-smile" /></svg>
+              </button>
+              <button type="submit" class="primary send" id="send" aria-label="Send" data-i18n-label="send">
+                <svg aria-hidden="true"><use href="#c-send" /></svg>
+              </button>
+            </div>
+            <!--
+              The eight people send a business, there at once, then every other emoji, searchable in
+              English and Arabic. The list is the visitor's own font and a file fetched the first time
+              this opens, not a dependency or a sheet of images — see `Emoji` in chat.js.
+            -->
+            <div
+              class="emoji-tray hidden"
+              id="emojiTray"
+              role="group"
+              aria-label="Emoji"
+              data-i18n-label="emoji"
+            ></div>
+          </form>
+          <p class="error hidden" id="chatError" role="alert"></p>
+          <!-- Over the whole conversation while a file is dragged across it. -->
+          <div class="drop hidden" id="dropZone" aria-hidden="true">
+            <svg><use href="#c-paperclip" /></svg>
+            <span data-i18n="dropHere">Drop files to send them</span>
+          </div>
+          <p class="brandline muted hidden" id="chatBranding"><span data-i18n="poweredBy">Powered by</span> <b>CNCT</b></p>
+        </section>
+
+      </div>
+    </main>
+
+    <script src="/chat-assets/chat.js"></script>
+  </body>
+</html>
