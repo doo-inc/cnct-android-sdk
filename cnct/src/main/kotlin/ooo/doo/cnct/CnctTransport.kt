@@ -10,6 +10,7 @@ import okhttp3.Call
 import okhttp3.Callback
 import okhttp3.HttpUrl
 import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.MultipartBody
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody
@@ -61,13 +62,29 @@ public class CnctTransport(
 
     /**
      * The raw bytes of something — an attachment, an export. Same auth and same error mapping as the
-     * JSON paths, because a 401 on a file download is the same event as a 401 anywhere else.
+     * JSON paths, because a 401 on a file download is the same event as a 401 anywhere else. Like
+     * [upload], no deadline on the whole call: a file is as large as somebody chose to send.
      */
     public suspend fun bytes(path: String, headers: Map<String, String> = emptyMap()): ByteArray {
-        val (status, data) = run(request("GET", config.resolve(path), null, headers))
+        val (status, data) = run(request("GET", config.resolve(path), null, headers), deadline = false)
         if (status >= 400) throw failure(status, data.decodeToString())
         return data
     }
+
+    /**
+     * Post a `multipart/form-data` body — a file — and answer its JSON, with the same headers and the
+     * same error mapping as everything else.
+     *
+     * **No deadline on the whole call**, unlike the JSON paths: a 50 MB video over a phone's data is
+     * minutes, not twenty seconds, and cutting it off at [CnctConfig.connectTimeout] would fail every
+     * large file on every slow network. OkHttp's own read and write timeouts still end a connection
+     * that has stopped moving.
+     */
+    public suspend fun upload(
+        path: String,
+        body: MultipartBody,
+        headers: Map<String, String> = emptyMap(),
+    ): JsonElement = exchange("POST", path, body, emptyMap(), headers, deadline = false)
 
     /** Send a request and answer its JSON. An empty body or a `204` answers [JsonNull]. */
     public suspend fun send(
@@ -80,7 +97,18 @@ public class CnctTransport(
         val payload = body?.let { Json.encodeToString(JsonElement.serializer(), it).toRequestBody(JSON) }
         // OkHttp refuses a POST, PUT or PATCH with no body, so an empty one stands in for "nothing".
         val effective = payload ?: if (method in NEEDS_BODY) EMPTY_BODY else null
-        val (status, data) = run(request(method, config.resolve(path, query), effective, headers))
+        return exchange(method, path, effective, query, headers, deadline = true)
+    }
+
+    private suspend fun exchange(
+        method: String,
+        path: String,
+        effective: RequestBody?,
+        query: Map<String, Any?>,
+        headers: Map<String, String>,
+        deadline: Boolean,
+    ): JsonElement {
+        val (status, data) = run(request(method, config.resolve(path, query), effective, headers), deadline)
         config.logger?.log(CnctLogLevel.DEBUG, "$method $path → $status", null)
 
         val text = data.decodeToString()
@@ -125,9 +153,9 @@ public class CnctTransport(
         return builder.build()
     }
 
-    private suspend fun run(request: Request): Pair<Int, ByteArray> = suspendCancellableCoroutine { continuation ->
+    private suspend fun run(request: Request, deadline: Boolean = true): Pair<Int, ByteArray> = suspendCancellableCoroutine { continuation ->
         val call = client.newCall(request)
-        call.timeout().timeout(config.connectTimeout.inWholeMilliseconds, TimeUnit.MILLISECONDS)
+        if (deadline) call.timeout().timeout(config.connectTimeout.inWholeMilliseconds, TimeUnit.MILLISECONDS)
         continuation.invokeOnCancellation { call.cancel() }
         call.enqueue(
             object : Callback {

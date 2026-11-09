@@ -117,7 +117,8 @@ class ChatClientTest {
         assertEquals("visitor-token-1", store.read("cnct_chat_$PUBLIC_KEY"))
         assertEquals("Layla", chat.state.value.visitor?.displayName)
         assertEquals(1, chat.state.value.messages.size)
-        assertEquals("""{"displayName":"Layla"}""", seen.single().body)
+        // The device's own zone rides along, so the team sees the customer's clock.
+        assertEquals("""{"displayName":"Layla","timezone":"${java.util.TimeZone.getDefault().id}"}""", seen.single().body)
 
         // The handshake goes out immediately: the server closes a socket that has not authenticated
         // within five seconds, so it must not wait behind a suspension.

@@ -28,7 +28,14 @@ import java.util.concurrent.TimeUnit
  * of times while a test waited for a single response.)
  */
 class FakeHttp(private val answer: (Seen) -> Answer) {
-    class Seen(val method: String, val path: String, val headers: Headers, val body: String) {
+    class Seen(
+        val method: String,
+        val path: String,
+        val headers: Headers,
+        val body: String,
+        val contentType: String? = null,
+        val query: String? = null,
+    ) {
         val json: JsonObject get() = Json.parseToJsonElement(body).jsonObject
     }
 
@@ -41,7 +48,14 @@ class FakeHttp(private val answer: (Seen) -> Answer) {
         .addInterceptor { chain ->
             val request = chain.request()
             val body = request.body?.let { Buffer().also(it::writeTo).readUtf8() } ?: ""
-            val seen = Seen(request.method, request.url.encodedPath, request.headers, body)
+            val seen = Seen(
+                request.method,
+                request.url.encodedPath,
+                request.headers,
+                body,
+                request.body?.contentType()?.toString(),
+                request.url.query,
+            )
             this.seen += seen
             val answer = answer(seen)
             Response.Builder()

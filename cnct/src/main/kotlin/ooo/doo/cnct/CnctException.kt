@@ -130,6 +130,26 @@ public object CnctErrorCode {
     public const val MISSING_CREDENTIAL: String = "missing_credential"
 
     /**
+     * More files than one message may carry — ten. Said before anything is uploaded. (A file over the
+     * 50 MB limit is [TOO_LARGE], before upload as after.) The attachment codes are the same on the
+     * web and iOS SDKs, so a support answer about a file is the same answer on every platform.
+     */
+    public const val TOO_MANY: String = "too_many"
+
+    /**
+     * A kind of file the chat does not take — said before upload, or answered `415`/`422` — HEIC
+     * included, which must be converted to JPEG first.
+     */
+    public const val UNSUPPORTED_TYPE: String = "unsupported_type"
+
+    /**
+     * The inbox takes no files (`403`), or the deployment keeps none (`503`). **Not a session
+     * problem**: the conversation goes on, without files — which is why a `403` here is not
+     * [UNAUTHENTICATED].
+     */
+    public const val ATTACHMENTS_DISABLED: String = "attachments_disabled"
+
+    /**
      * A tool declined, in a sentence rather than a status code. The platform answers `200` with an
      * `error` key when it will not do something, and this is that, raised.
      */
