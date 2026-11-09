@@ -51,7 +51,10 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.semantics.ProgressBarRangeInfo
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.progressBarRangeInfo
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextStyle
@@ -60,6 +63,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDirection
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -179,10 +183,18 @@ internal fun Spinner(color: Color, modifier: Modifier = Modifier, size: Dp = 28.
     }
 }
 
-/** An upload's progress, as a ring that fills. */
+/**
+ * An upload's progress, as a ring that fills — the way the line reads, so counter-clockwise in
+ * Arabic, as every progress indicator in a mirrored interface runs. Says its progress to TalkBack.
+ */
 @Composable
 internal fun ProgressRing(progress: Float, color: Color, modifier: Modifier = Modifier) {
-    Canvas(modifier) {
+    val rtl = LocalLayoutDirection.current == LayoutDirection.Rtl
+    Canvas(
+        modifier
+            .semantics { progressBarRangeInfo = ProgressBarRangeInfo(progress.coerceIn(0f, 1f), 0f..1f) }
+            .graphicsLayer { if (rtl) scaleX = -1f },
+    ) {
         val width = this.size.minDimension * 0.11f
         val inset = width / 2
         val arcSize = Size(this.size.width - width, this.size.height - width)
