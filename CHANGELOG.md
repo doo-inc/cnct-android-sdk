@@ -34,6 +34,31 @@ The rest of the visitor API, as CNCT's hosted chat page uses it (`docs/chat-ui/S
   When a conversation closes, the client asks the server whether it can be rated.
 - The session start and resume send the device's IANA `timezone`.
 
+**`cnct-ui`**, a third artifact: CNCT's chat, ready-made, in Jetpack Compose (`docs/chat-ui/SPEC.md`,
+Part 2). Built only on the headless client's public API.
+
+- `CnctChat(client | publicKey, theme, language, strings, identity, onClose, onEvent)`, and
+  `CnctChatActivity.intent(…)` for apps without Compose.
+- `CnctChatTheme` with the shared token names (`primary`, `onPrimary`, `background`, `surface`, `text`,
+  `textMuted`, `border`, the bubble pairs, `cornerRadius`, `font`, `logo`, `title`, `appearance`,
+  `showPoweredBy`), light and dark. What the app passes wins over the console's widget settings,
+  which win over the defaults. `onPrimary` follows the server's contrast rule. Does not use or change
+  the app's `MaterialTheme`.
+- English and Arabic from the shared string table, generated as `values/strings.xml` and
+  `values-ar/strings.xml` (`./gradlew :cnct-ui:generateCnctStrings`) with a test that they match it.
+  Arabic mirrors the whole screen; every piece of user text takes its own direction; phone numbers,
+  emails, addresses and file sizes stay left to right; Latin digits.
+- The conversation: grouped bubbles signed with face and first name, system lines, day stamps,
+  links, quotes, flow choices (buttons or a list) and suggestions, typing, pending and failed (with
+  retry) messages, "Seen", an offline line, the name card for visitors who typed first, "End chat",
+  the rating card and "Start a new conversation".
+- Files: the photo picker, the camera (through a `FileProvider`) and the document picker — no
+  storage permissions. Checked before upload, uploaded at once with a progress ring, HEIC/HEIF
+  converted to JPEG and photos brought down to 2560 px. Received photos inline (tap for a zoomable
+  viewer), other files as cards that open in the phone's own viewer or the share sheet.
+- `CnctChatFixture`: the shared fixture conversation on an in-process fake server, for previews,
+  tests and a demo with no key. CI renders it with Roborazzi and uploads the PNGs as `screenshots`.
+
 ## Unreleased — 0.1.0
 
 - The foundation, matching the Flutter and web SDKs at 0.2.0: `Cnct`, `CnctConfig` (production

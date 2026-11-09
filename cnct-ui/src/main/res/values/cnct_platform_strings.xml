@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Words the shared table (docs/chat-ui/strings.json) does not have, because only the native SDKs
+     need them: the attach menu's three choices. The same keys and words as the iOS SDK's, and
+     overridable through `strings` like any key. Kept out of strings.xml so that file stays exactly
+     the shared table. -->
+<resources>
+    <string name="cnct_attach_photos">Photo library</string>
+    <string name="cnct_attach_camera">Take a photo</string>
+    <string name="cnct_attach_files">Choose a file</string>
+</resources>

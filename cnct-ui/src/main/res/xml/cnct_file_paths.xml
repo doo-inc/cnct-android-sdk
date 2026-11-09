@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Only the chat's own folders in the app's cache: received files, opened under their own names,
+     and the camera's photos before they are sent. -->
+<paths>
+    <cache-path name="cnct_files" path="cnct-files/" />
+    <cache-path name="cnct_camera" path="cnct-camera/" />
+</paths>
