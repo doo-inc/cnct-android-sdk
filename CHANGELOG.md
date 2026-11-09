@@ -13,7 +13,7 @@ The rest of the visitor API, as CNCT's hosted chat page uses it (`docs/chat-ui/S
   assistant), `flow` (`CnctChatFlow`: words, `buttons`/`list` choices, footer, media, the kind of
   answer it `expects`), `suggestions`, `replyTo` (a quoted earlier message) and `attachments`.
   `CnctChatState` gains `awaiting` (what a flow is waiting for), `suggestions`, `seen` and `isLive`.
-- **Files both ways.** `uploadAttachment(bytes | stream, filename, mimeType, onProgress)` sends one
+- **Files both ways.** `upload(bytes | stream, filename, mimeType, onProgress)` sends one
   file as `multipart/form-data` (part `file`) with real per-file progress, after checking it against
   `CnctAttachmentRules` (10 files, 50 MB, the accepted types; HEIC/HEIF must be converted to JPEG). The
   server's refusals keep its sentence and map to the usual codes (`409` is `conversation_closed`,

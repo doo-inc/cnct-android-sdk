@@ -242,7 +242,7 @@ class ChatVisitorApiTest {
         answers["/api/chat/public/attachments"] = { FakeHttp.Answer(201, ATTACHMENT) }
         val chat = clientWith()
         chat.start(displayName = "Layla")
-        val photo = chat.uploadAttachment(ByteArray(10), "photo.jpg", "image/jpeg")
+        val photo = chat.upload(ByteArray(10), "photo.jpg", "image/jpeg")
 
         val pending = async { chat.send(attachmentIds = listOf(photo.id)) }
         runCurrent()
@@ -260,7 +260,7 @@ class ChatVisitorApiTest {
         answers["/api/chat/public/messages"] = { FakeHttp.Answer(500, """{"error":"boom"}""") }
         val chat = clientWith()
         chat.start(displayName = "Layla")
-        val photo = chat.uploadAttachment(ByteArray(10), "photo.jpg", "image/jpeg")
+        val photo = chat.upload(ByteArray(10), "photo.jpg", "image/jpeg")
 
         assertFailsWith<CnctException> { chat.send("Here", attachmentIds = listOf(photo.id)) }
 
@@ -367,7 +367,7 @@ class ChatVisitorApiTest {
             val progress = CopyOnWriteArrayList<Float>()
             val bytes = ByteArray(256 * 1024) { (it % 251).toByte() }
 
-            val attachment = chat.uploadAttachment(bytes, "فاتورة.pdf", "application/pdf") { progress += it }
+            val attachment = chat.upload(bytes, "فاتورة.pdf", "application/pdf") { progress += it }
 
             assertEquals("att_9", attachment.id)
             val upload = received.single { it.path == "/api/chat/public/attachments" }
@@ -403,13 +403,13 @@ class ChatVisitorApiTest {
         seen.clear()
 
         val big = assertFailsWith<CnctException> {
-            chat.uploadAttachment(CnctAttachmentRules.MAX_BYTES + 1, "film.mp4", "video/mp4") { error("never opened") }
+            chat.upload(CnctAttachmentRules.MAX_BYTES + 1, "film.mp4", "video/mp4") { error("never opened") }
         }
         assertEquals(CnctErrorCode.TOO_LARGE, big.code)
-        val heic = assertFailsWith<CnctException> { chat.uploadAttachment(ByteArray(4), "IMG_0001.HEIC", "image/heic") }
+        val heic = assertFailsWith<CnctException> { chat.upload(ByteArray(4), "IMG_0001.HEIC", "image/heic") }
         assertEquals(CnctErrorCode.INVALID, heic.code)
         assertTrue(heic.message.contains("JPEG"))
-        val exe = assertFailsWith<CnctException> { chat.uploadAttachment(ByteArray(4), "setup.exe", "application/x-msdownload") }
+        val exe = assertFailsWith<CnctException> { chat.upload(ByteArray(4), "setup.exe", "application/x-msdownload") }
         assertEquals(CnctErrorCode.INVALID, exe.code)
 
         assertTrue(seen.isEmpty())
@@ -417,7 +417,7 @@ class ChatVisitorApiTest {
 
     @Test
     fun `an upload before a session is a named refusal`() = runTest {
-        val error = assertFailsWith<CnctException> { clientWith().uploadAttachment(ByteArray(4), "a.png", "image/png") }
+        val error = assertFailsWith<CnctException> { clientWith().upload(ByteArray(4), "a.png", "image/png") }
         assertEquals(CnctErrorCode.NO_SESSION, error.code)
     }
 
@@ -453,7 +453,7 @@ class ChatVisitorApiTest {
         )
         for ((answer, code) in expected) {
             status = answer
-            val error = assertFailsWith<CnctException> { chat.uploadAttachment(ByteArray(4), "a.png", "image/png") }
+            val error = assertFailsWith<CnctException> { chat.upload(ByteArray(4), "a.png", "image/png") }
             assertEquals(code, error.code, "for $answer")
             assertEquals("A sentence for a person.", error.message)
             assertEquals(answer, error.status)
