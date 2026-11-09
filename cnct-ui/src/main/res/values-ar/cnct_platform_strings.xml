@@ -1,4 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="cnct_camera">الكاميرا</string>
+    <string name="cnct_attach_photos">مكتبة الصور</string>
+    <string name="cnct_attach_camera">التقاط صورة</string>
+    <string name="cnct_attach_files">اختيار ملف</string>
 </resources>
