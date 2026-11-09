@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Words the shared table (docs/chat-ui/strings.json) does not have because only a phone needs
+     them. Kept out of strings.xml so that file stays exactly the shared table. -->
+<resources>
+    <!-- The attach menu's "take a photo now". The web has no camera button: a browser offers it inside
+         its own file chooser. -->
+    <string name="cnct_camera">Camera</string>
+</resources>

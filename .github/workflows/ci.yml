@@ -21,10 +21,21 @@ jobs:
           java-version: 17
       - uses: gradle/actions/setup-gradle@v4
       # `build` compiles with warnings as errors, runs the tests (Robolectric included), lints the
-      # Android modules, and builds the jar, the AAR and the sample. The runner image carries the
+      # Android modules, and builds the jar, the AARs and the sample. The runner image carries the
       # Android SDK. publishToMavenLocal is what JitPack runs, so a tag that would not install fails
       # here first.
       - run: ./gradlew build publishToMavenLocal --console=plain
+      # The fixture conversation, rendered by the real chat UI on the JVM (Robolectric's native
+      # graphics, through Roborazzi): {en,ar} × {light,dark}, {en,ar} with a custom theme, and the
+      # name form and the ended conversation in both languages. What a reviewer looks at to approve
+      # a release.
+      - name: Render the chat screenshots
+        run: ./gradlew :cnct-ui:testDebugUnitTest --rerun --tests 'ooo.doo.cnct.ui.ChatScreenshotTest' -Proborazzi.test.record=true --console=plain
+      - uses: actions/upload-artifact@v4
+        with:
+          name: screenshots
+          path: cnct-ui/build/outputs/roborazzi/*.png
+          if-no-files-found: error
       - uses: actions/upload-artifact@v4
         if: failure()
         with:

@@ -35,4 +35,5 @@ jobs:
           files: |
             cnct/build/libs/*.jar
             cnct-android/build/outputs/aar/cnct-android-release.aar
+            cnct-ui/build/outputs/aar/cnct-ui-release.aar
           generate_release_notes: true

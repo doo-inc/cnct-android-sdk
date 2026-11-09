@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- No permissions. The photo picker, the camera and the document picker are the system's own, and
+     hand back only what the visitor chose, so the chat never asks for storage or camera access. The
+     INTERNET permission the chat needs is the app's to declare. -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <application>
+        <activity
+            android:name="ooo.doo.cnct.ui.CnctChatActivity"
+            android:exported="false"
+            android:theme="@android:style/Theme.Material.Light.NoActionBar"
+            android:windowSoftInputMode="adjustResize" />
+
+        <!-- Hands the chat's files to other apps: a photo for the camera to write into, a received
+             file for a viewer to open. Its own authority, so it never collides with the app's. -->
+        <provider
+            android:name="ooo.doo.cnct.ui.CnctFileProvider"
+            android:authorities="${applicationId}.cnct.files"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/cnct_file_paths" />
+        </provider>
+    </application>
+</manifest>
