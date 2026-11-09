@@ -409,7 +409,13 @@ private fun Header(controller: ChatController, state: CnctChatState, onClose: ((
                         Box(Modifier.size(8.dp).clip(CircleShape).background(dot))
                         Gap(6.dp)
                     }
-                    BasicText(line, style = look.style(13.sp, theme.textMuted, lineHeight = 17.sp), maxLines = 2)
+                    // Three lines before an ellipsis: at the largest font sizes this sentence wraps.
+                    BasicText(
+                        line,
+                        style = look.style(13.sp, theme.textMuted, lineHeight = 17.sp),
+                        maxLines = 3,
+                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                    )
                 }
             }
             val canEnd = state.inbox?.widget?.chat?.allowEndConversation == true && conversation != null && state.isLive
